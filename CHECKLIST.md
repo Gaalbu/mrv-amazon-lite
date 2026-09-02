@@ -3,6 +3,11 @@
 Use este checklist para validar antes do `gh release v0.1.0` e do post no LinkedIn.
 Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 
+> **Atualização 2026-09-02:** gaps de código resolvidos (Folium, Upload customizado, PRODES real
+> com fallback, export JSON+texto; `cop30_legacy`, `inspired_by`, teste `fetch_prodes`) e **prova
+> visual automatizada** criada e executada (screenshots gerados e salvos no PC). Restam apenas os
+> itens editoriais (release v0.1.0 + post LinkedIn).
+
 ---
 
 ## BLOQUEADORES (não publicar sem todos verdes)
@@ -21,11 +26,12 @@ Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 - [x] Comprovado: `docker build -t mrv-lite:test .` sem erro
 
 ### 3. Dashboard demonstrável — `web/app.py`
-- [x] Tem gráfico de série PRODES (st.line_chart ou plotly) — não só `st.map`
-- [x] Mapa renderizado (st.map ou st_folium)
+- [x] Tem gráfico de série PRODES (st.line_chart) — integrado ao API real com fallback demo
+- [x] Mapa renderizado (Folium + st_folium/Leaflet)
 - [x] Cards TFFF + PlaNAU visíveis
 - [x] Disclaimer abaixo dos métrios: `TFFF/PlaNAU: simulação ilustrativa pós-COP30 Belém`
-- [ ] Visual funciona com os 3 GeoJSONs (rural/urbano/degradado) — sem dependência de API externa que trave a demo (código e GeoJSONs verificados; renderização visual pendente)
+- [x] Visual funciona com os 3 GeoJSONs + Upload customizado, sem travar por API externa
+      (série PRODES com fallback demo; verificado via `scripts/screenshots.py`)
 
 ---
 
@@ -44,14 +50,15 @@ Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 ## QUALIDADE
 
 ### 6. Testes e lint — LOGS OBRIGATÓRIOS (cole os 3 abaixo)
-- [x] Log de `python -m pytest tests/ -v` — 9 testes verdes (sem `FAILED`/`ERROR`)
-- [x] Log de `ruff check src tests web` — sem warnings
-- [x] Log de `ruff format src tests web` — sem alterações pendentes
+- [x] Log de `python -m pytest tests/ -v` — 10 testes verdes (sem `FAILED`/`ERROR`)
+- [x] Log de `ruff check src tests web scripts` — sem warnings
+- [x] Log de `ruff format src tests web scripts` — sem alterações pendentes
 
-### 7. Prova visual — DEMO
-- [ ] Screenshot do dashboard com **Juruti — UMF V Mamuru-Arapiuns** (VCU ~380k + TFFF elegível + PlaNAU "não se aplica") — pendente: navegador indisponível nesta sessão
-- [ ] Screenshot com **Área urbana demo** (PlaNAU prioridade alta + déficit árvores) — pendente: navegador indisponível nesta sessão
-- [ ] Screenshot com **Área degradada demo** (TFFF não elegível) — pendente: navegador indisponível nesta sessão
+### 7. Prova visual — DEMO (automatizada, salva no PC)
+- [x] Screenshot com **Juruti — UMF V Mamuru-Arapiuns** (VCU ~380k + TFFF elegível + PlaNAU "não se aplica") — `screenshots/01_juruti_mamuru.png`
+- [x] Screenshot com **Área urbana demo** (PlaNAU prioridade alta + déficit árvores) — `screenshots/02_area_urbana_planau.png`
+- [x] Screenshot com **Área degradada demo** (TFFF não elegível) — `screenshots/03_area_degradada_tfff.png`
+- [x] Geração automatizada por `scripts/screenshots.py` (Playwright) — roda local (`make screenshots`) e no CI (`screenshots.yml` → artefato)
 - [ ] Opcional: GIF <15s dos 3 use cases para o LinkedIn
 
 ### 8. Sanitização
@@ -64,9 +71,9 @@ Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 
 ## GATE FINAL (somente marcar quando os itens acima estiverem verdes)
 
-- [ ] Todos os 3 bloqueadores resolvidos (prova visual ainda pendente)
-- [x] 3 logs colados (pytest, ruff check, ruff format)
-- [ ] 3 screenshots dos use cases (navegador indisponível nesta sessão)
+- [ ] Todos os 3 bloqueadores resolvidos (prova visual agora coberta por automação)
+- [x] 4 logs colados (pytest, ruff check, ruff format, docker build)
+- [x] 3 screenshots dos use cases gerados e salvos em `screenshots/`
 - [x] **Autorizado:** `gh repo create Gaalbu/mrv-amazon-lite --public --source=. --push`
 - [ ] **Autorizado:** `gh release create v0.1.0` com notes pós-COP30
 - [ ] Post LinkedIn final revisado (sem "COP30 vem aí"; usar "COP30 Belém 10-21/11/2025 entregou...")
@@ -75,16 +82,25 @@ Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 
 ```text
 $ .venv/bin/python -m pytest tests/ -v
-9 passed in 3.59s
+10 passed in 1.54s
 
-$ .venv/bin/ruff check src tests web
+$ .venv/bin/ruff check src tests web scripts
 All checks passed!
 
-$ .venv/bin/ruff format --check src tests web
-9 files already formatted
+$ .venv/bin/ruff format --check src tests web scripts
+10 files already formatted
 
 $ docker build -t mrv-lite:test .
 exit code 0; image mrv-lite:test criada; contexto Docker 85.80kB
 ```
 
-A prova visual não foi marcada: não havia navegador disponível/conectado na sessão para capturar screenshots reais. O release v0.1.0 e o post no LinkedIn também permanecem deliberadamente pendentes.
+Screenshots gerados e salvos no PC (2026-09-02):
+```
+screenshots/01_juruti_mamuru.png       (1440x900 PNG)
+screenshots/02_area_urbana_planau.png  (1440x900 PNG)
+screenshots/03_area_degradada_tfff.png (1440x900 PNG)
+```
+
+Prova visual agora é **automatizada** via `scripts/screenshots.py` (Playwright) e roda tanto local
+(`make screenshots`) quanto no CI (`.github/workflows/screenshots.yml`, publicada como artefato).
+O release v0.1.0 e o post LinkedIn permanecem deliberadamente pendentes (itens editoriais).

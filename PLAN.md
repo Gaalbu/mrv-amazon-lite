@@ -1,121 +1,88 @@
 # MRV Amazon Lite — Implementação (post-COP30 MVP)
 
+> **Estado: IMPLEMENTADO e VERIFICADO (2026-09-02).** Este PLAN documenta o que foi construído
+> e como reproduzir/validar. Divergências vs. o esboço original (Folium, Upload, PRODES, PDF,
+> screenshots) foram resolvidas e estão registradas abaixo. O plano não é mais um roadmap, é um
+> registro do sistema entregue + guia de manutenção.
+
 Projeto inspirado no projeto CNPq RHAE Green Forest/UFRA/ACC.
 Transforma o MRV que seria entregue para COP30 em ferramenta de implementação pós-COP30.
 
-**Stack:** Python + Streamlit + Leaflet
-**Tempo estimado:** 4-5h
-**Local:** `/home/gaalbu/codigos/mrv-amazon-lite` (repo novo, não mexer em tokidachi)
+**Stack:** Python + Streamlit + Folium/Leaflet
+**Local:** `/home/gaalbu/codigos/mrv-amazon-lite`
 
 ---
 
-## Etapa 1 — Fundação do repo (15min)
+## Etapa 1 — Fundação do repo — ✅ CONCLUÍDA
 
-```bash
-mkdir -p /home/gaalbu/codigos/mrv-amazon-lite
-cd /home/gaalbu/codigos/mrv-amazon-lite
-git init
-```
-
-Criar estrutura:
+Estrutura:
 ```
 src/
   ingest.py
   carbon.py
   mrv.py
-  tfff.py          # novo — elegibilidade TFFF
-  planau.py        # novo — card PlaNAU
+  tfff.py
+  planau.py
+  config.json
+scripts/
+  screenshots.py      # novo — automação de screenshots (Playwright)
 data/
   samples/
-    juruti_mamuru.geojson   # UMF V Mamuru-Arapiuns
-    example_urban.geojson   # exemplo urbano para PlaNAU
+    juruti_mamuru.geojson
+    example_urban.geojson
     example_degraded.geojson
+  mapbiomas_pa_2023.csv
 web/
-  app.py            # Streamlit app
+  app.py
+tests/
+  test_core.py
+  test_ingest.py
 requirements.txt
 pyproject.toml
 Makefile
 Dockerfile
 .github/workflows/ci.yml
+.github/workflows/screenshots.yml   # novo — prova visual em CI (artefato)
 .gitignore
 LICENSE
 README.md
 ```
 
-Arquivos-chave a criar na Etapa 1 (só esqueleto vazio ou boilerplate mínimo):
-- `requirements.txt` com: streamlit, folium, geopandas, shapely, requests, rasterio, pyproj
-- `pyproject.toml` com nome `mrv-amazon-lite`, versão `0.1.0`
-- `Makefile` com targets: `install`, `test`, `run` (= `streamlit run web/app.py`), `build`
-- `.gitignore` padrão Python + .streamlit
-- `LICENSE` MIT
+- `pyproject.toml` com nome `mrv-amazon-lite`, versão `0.1.0` ✅
+- `Makefile` targets: `install`, `test`, `run` (= `streamlit run web/app.py`), `build`, `screenshots` ✅
+- `requirements.txt` com versões `==` pinadas ✅
+- `LICENSE` MIT com autor (2026 Gabriel Alencar) ✅
 
 ---
 
-## Etapa 2 — Ingestão de dados abertos (60min)
+## Etapa 2 — Ingestão de dados abertos — ✅ CONCLUÍDA
 
 ### `src/ingest.py`
 
-**Fontes (todas públicas, sem credencial):**
+- **PRODES/INPE:** `fetch_prodes(bbox, years)`, layer `prodes_para_q`, via WFS 2.0.0
+  `https://terrabrasilis.dpi.inpe.br/wfs/terrabrasilis` com parâmetro `bbox` (não CQL —
+  escolha de implementação; funcionalmente equivalente).
+- **DETER/INPE:** `fetch_deter(bbox, months=12)`, layer `deter_para_q`, corte por data.
+- **MapBiomas:** `fetch_mapbiomas(collection=9, year=2023, state="PA")` — fallback para CSV
+  local `data/mapbiomas_pa_2023.csv` (header `state,year,class,area_ha`); se ausente, retorna
+  DataFrame vazio com o schema.
+- `compute_deforestation_series(prodes_gdf, target_area)` — overlay de interseção + área em
+  `EPSG:6933` / ha, agrupado por ano.
+- `_validate_bbox(bbox)` — valida `west<east` e `south<north`, lança `ValueError`.
 
-1. **PRODES/INPE (desmatamento histórico):**
-   - WFS: `https://terrabrasilis.dpi.inpe.br/wfs/terrabrasilis`
-   - Layer: `prodes_para_q`
-   - Returns GeoJSON com geometria + área desmatada por ano
-   - Usar `requests.get` com CQL filter para bounding box do polígono de entrada
+**GeoJSON samples** (1:1 com o especificado):
+- `data/samples/juruti_mamuru.geojson` — UMF V Mamuru-Arapiuns, Juruti/PA
+- `data/samples/example_urban.geojson` — Centro Belém (is_urban, tree_cover 0.12)
+- `data/samples/example_degraded.geojson` — área degradada (deforestation 0.35)
 
-2. **DETER/INPE (alertas recentes):**
-   - WFS: `https://terrabrasilis.dpi.inpe.br/wfs/terrabrasilis`
-   - Layer: `deter_para_q`
-   - Últimos 12 meses
-
-3. **MapBiomas (cobertura do solo):**
-   - API: `https://data.mapbiomas.org/api/v2/`
-   - Coleção 9 (2023 é a mais recente estável; coleção 10 sai ~out/2026)
-   - Endpoint: `GET /series?query=...` ou fallback: CSV estático baixado uma vez
-   - Usar proxy Python se API não responder direto
-
-**Implementação:**
-```python
-# src/ingest.py
-def fetch_prodes(bbox: list[float, float, float, float], years: range = range(2016, 2025)) -> gpd.GeoDataFrame:
-    """bbox = [west, south, east, north]. Retorna GeoDataFrame com colunas [geometry, area_ha, year]."""
-
-def fetch_deter(bbox: list[float, float, float, float], months: int = 12) -> gpd.GeoDataFrame:
-    """Retorna alertas últimos N meses."""
-
-def fetch_mapbiomas(collection: int = 9, year: int = 2023, state: str = "PA") -> pd.DataFrame:
-    """Fallback: lê CSV local em data/mapbiomas_pa_2023.csv."""
-
-def compute_deforestation_series(prodes_gdf: gpd.GeoDataFrame, target_area: gpd.GeoDataFrame) -> pd.Series:
-    """Interseção PRODES x polígono alvo → série temporal de área desmatada/ano."""
-```
-
-**Polígono Juruti/Mamuru:**
-- Criar `data/samples/juruti_mamuru.geojson` com bounding box aproximado da UMF V Glebas Mamuru-Arapiuns
-- Coordenadas: Juruti centro ≈ [-56.05, -2.42], raio ~15km
-- Usar polígono simplificado retangular para demo (não precisa de shapefile real)
-- Aproximação: `[[-56.15, -2.55], [-55.95, -2.55], [-55.95, -2.29], [-56.15, -2.29]]`
-
-**Testes:**
-```python
-# tests/test_ingest.py
-def test_fetch_prodes_returns_gdf():
-    """Verifica que fetch_prodes retorna GeoDataFrame com colunas esperadas."""
-
-def test_bbox_validation():
-    """bbox com south > north deve levantar ValueError."""
-
-def test_compute_deforestation_series():
-    """Mock PRODES data, verificar série por ano."""
-```
+**Testes:** `tests/test_ingest.py` — `test_bbox_validation`, `test_fetch_prodes_returns_gdf`
+(mock WFS, novo), `test_compute_deforestation_series`, `test_fetch_mapbiomas_fallback_has_schema`.
 
 ---
 
-## Etapa 3 — Motor carbono ARR simplificado (60min)
+## Etapa 3 — Motor carbono ARR — ✅ CONCLUÍDA
 
-### `src/carbon.py`
-
-**Parâmetros (config JSON em `src/config.json`):**
+### `src/config.json`
 ```json
 {
   "methodology": "VCS_VM0047_lite",
@@ -124,491 +91,175 @@ def test_compute_deforestation_series():
     "varzea": {"mean_tco2e_ha": 180, "min": 100, "max": 250},
     "igapo": {"mean_tco2e_ha": 150, "min": 80, "max": 220}
   },
-  "vcs_params": {
-    "crediting_period_years": 30,
-    "leakage_factor": 0.10,
-    "buffer_pool": 0.20,
-    "discount_rate": 0.05
-  },
-  "cop30_legacy": {
-    "tfff_eligible": true,
-    "note": "Parâmetros alinhados ao post-COP30: TFFF exige resultados comprovados em conservação"
-  }
+  "vcs_params": {"crediting_period_years": 30, "leakage_factor": 0.10, "buffer_pool": 0.20, "discount_rate": 0.05, "restoration_rate": 0.8},
+  "cop30_legacy": {"tfff_eligible": true, "note": "Parâmetros alinhados ao post-COP30: TFFF exige resultados comprovados em conservação"}
 }
 ```
 
-**Implementação:**
-```python
-# src/carbon.py
-@dataclass
-class CarbonEstimate:
-    area_ha: float
-    biomass_type: str  # "terra_firme", "varzea", "igapo"
-    baseline_tco2e_ha: float
-    restoration_tco2e_ha: float
-    gross_vcu: float          # restoration * area * years
-    leakage_deduction: float  # gross * leakage_factor
-    buffer_deduction: float   # (gross - leakage) * buffer_pool
-    net_vcu: float            # gross - leakage - buffer
-    uncertainty_range: tuple[float, float]  # (min, max)
-    methodology_note: str
+### `src/carbon.py`
+- `CarbonEstimate` (dataclass frozen, 10 campos)
+- `estimate_vcu(area_ha, biomass_type, crediting_years, config)` — valida entradas
+- `estimate_vcu_range(...)` → `(min, max)` via ranges IPCC
 
-def estimate_vcu(
-    area_ha: float,
-    biomass_type: str = "terra_firme",
-    crediting_years: int = 30,
-    config: dict | None = None
-) -> CarbonEstimate:
-    """Estimativa ARR simplificada VCS VM0047 lite."""
-
-def estimate_vcu_range(
-    area_ha: float,
-    biomass_type: str = "terra_firme",
-    crediting_years: int = 30
-) -> tuple[CarbonEstimate, CarbonEstimate]:
-    """Retorna (estimate_min, estimate_max) usando ranges IPCC."""
+Fórmula:
 ```
-
-**Fórmula base:**
-```
-gross = restoration_rate * area_ha * tco2e_ha * years
-  (restoration_rate ≈ 0.8 para Amazônia, conforme IPAM)
-
+gross = restoration_rate * area * tco2e_ha * years   # restoration_rate = 0.8
 leakage = gross * 0.10
 pool    = (gross - leakage) * 0.20
 net     = gross - leakage - pool
-
-uncertainty: ±30% em cima do net (faixa IPCC)
+uncertainty: ±30% sobre o net
 ```
 
-**Testes:**
-```python
-# tests/test_carbon.py
-def test_vcu_100ha_terra_firme():
-    """100ha terra firme, 30 anos → ~52.800 net VCU (estimativa)"""
-    est = estimate_vcu(100, "terra_firme", 30)
-    assert est.net_vcu > 40000
-    assert est.net_vcu < 70000
-
-def test_vcu_range():
-    """Range não deve ser negativo."""
-    lo, hi = estimate_vcu_range(100)
-    assert lo.net_vcu > 0
-    assert hi.net_vcu > lo.net_vcu
-
-def test_leakage_and_buffer():
-    """Verifica que leakage e buffer são deduzidos corretamente."""
-    est = estimate_vcu(100, "terra_firme", 30)
-    assert est.leakage_deduction > 0
-    assert est.buffer_deduction > 0
-    assert est.net_vcu < est.gross_vcu
-```
+> **Nota de precisão:** o esboço original dizia "100ha terra firme 30 anos → ~52.800 VCU".
+> Isso é **incorreto** perante a fórmula. O valor real é `0.8 * 100 * 220 * 30 = 528.000 gross`
+> → **380.160 net** (para `conservação`). O PLAN está corrigido; `tests/test_core.py:12`
+> valida `380160`.
 
 ---
 
-## Etapa 4 — Módulo TFFF (pós-COP30) (30min)
+## Etapa 4 — Módulo TFFF — ✅ CONCLUÍDA
 
 ### `src/tfff.py`
+- `TFFF_RATE_USD_HA_YEAR = 5.0`
+- `TFFFCheck` (dataclass, 9 campos)
+- `check_tfff_eligibility(deforestation_pct, has_indigenous, has_rl, has_pmfs, area_ha=1.0)`
+  — `area_ha` foi adicionada à assinatura (melhoria retrocompatível, default 1.0)
+  para o pagamento `area * 5 * multiplicador`.
 
-**Regras de elegibilidade TFFF (baseado Green Forest COP30 + gov.br):**
-O TFFF paga US$5/ha/ano para países que provem conservação. Para área individual:
-
-```python
-# src/tfff.py
-@dataclass
-class TFFFCheck:
-    area_ha: float
-    deforestation_pct_10yr: float     # % desmatada nos últimos 10 anos
-    is_indigenous_or_traditional: bool
-    has_legal_reservation: bool       # RL > 0 (via CAR simulado)
-    has_management_plan: bool         # PMFS ou equivalente
-    eligible: bool
-    estimated_payment_usd_year: float  # ~US$5/ha/ano se elegível
-    reasons: list[str]
-    source: str  # "TFFF/Belém/COP30 nov 2025"
-
-def check_tfff_eligibility(
-    deforestation_pct: float,
-    has_indigenous: bool = False,
-    has_rl: bool = True,
-    has_pmfs: bool = False
-) -> TFFFCheck:
-    """Verifica elegibilidade simplificada para TFFF."""
-
-TFFF_RATE_USD_HA_YEAR = 5.0
-```
-
-**Critérios (simplificados, para MVP):**
-1. Desmatamento acumulado 10 anos < 5% da área → OK
-2. Se indígena/tradicional → bônus 1.5x
-3. Se PMFS ativo → confirma elegibilidade
-4. Se desmatamento > 20% → ineligível
-
-**Testes:**
-```python
-# tests/test_tfff.py
-def test_eligible_low_deforestation():
-    check = check_tfff_eligibility(0.02)
-    assert check.eligible
-    assert check.estimated_payment_usd_year == 5.0
-
-def test_ineligible_high_deforestation():
-    check = check_tfff_eligibility(0.25)
-    assert not check.eligible
-
-def test_indigenous_bonus():
-    check_ind = check_tfff_eligibility(0.02, has_indigenous=True)
-    assert check_ind.estimated_payment_usd_year == 7.5
-```
+Critérios: `eligible = desmate < 5% and has_rl`; `≥20%` → ineligível; bônus indígena `1.5x`.
 
 ---
 
-## Etapa 5 — Módulo PlaNAU (pós-COP30) (30min)
+## Etapa 5 — Módulo PlaNAU — ✅ CONCLUÍDA
 
 ### `src/planau.py`
+- `PLANAU_TARGET_TREES_PER_HA = 100`, `PLANAU_COST_PER_TREE_BRL = 500`
+- `PlanauCheck` (dataclass, 9 campos)
+- `check_planau_eligibility(is_urban, tree_cover_pct, area_ha)` → `None` se não urbano
 
-**Regras PlaNAU (baseado Green Forest 17/11/2025):**
-O PlaNAU é para áreas urbanas, então verifica se polígono é urbano e calcula déficit de cobertura arbórea:
-
-```python
-# src/planau.py
-@dataclass
-class PlanauCheck:
-    area_ha: float
-    is_urban: bool
-    tree_cover_pct: float             # % cobertura arbórea atual
-    tree_count_estimate: int          # ~100 árvores/ha (ref.= 3/rua = ~100/ha)
-    deficit_trees: int                # para atingir meta 3 árvores/rua
-    area_verde_gap_ha: float          # gap para 360k ha nacionais (proporcional)
-    priority_level: str               # "alta", "média", "baixa"
-    estimated_cost_brl: float         # ~R$500/árvore plantada (ref)
-    source: str                       # "PlaNAU/COP30 nov 2025"
-
-def check_planau_eligibility(
-    is_urban: bool,
-    tree_cover_pct: float,
-    area_ha: float
-) -> PlanauCheck | None:
-    """ Retorna None se não for urbano. """
-
-PLANAU_TARGET_TREES_PER_HA = 100
-PLANAU_COST_PER_TREE_BRL = 500
-```
-
-**Critérios:**
-- Se `is_urban=False` → retorna None (não se aplica)
-- Priority alta: tree_cover < 15% (ilhas de calor)
-- Priority média: 15-30%
-- Priority baixa: > 30%
-
-**Testes:**
-```python
-# tests/test_planau.py
-def test_non_urban_returns_none():
-    assert check_planau_eligibility(False, 0.2, 100) is None
-
-def test_urban_low_cover():
-    check = check_planau_eligibility(True, 0.10, 50)
-    assert check.priority_level == "alta"
-    assert check.deficit_trees > 0
-```
+Prioridade: `alta <15%`, `média 15–30%`, `baixa >30%`.
 
 ---
 
-## Etapa 6 — Dashboard Streamlit (60min)
+## Etapa 6 — Dashboard Streamlit — ✅ CONCLUÍDA (com ajustes)
 
 ### `web/app.py`
 
-**Layout:**
-```
-┌──────────────────────────────────────────────────┐
-│  🌳 MRV Amazon Lite — Pós-COP30                  │
-│  Polígono: [input] ou seleção pré-definida       │
-│  [Juruti/Mamuru] [Urban Demo] [Custom Upload]    │
-├──────────────────────────────────────────────────┤
-│                                                  │
-│  ┌──────────────┐  ┌──────────────────────────┐  │
-│  │ MAPA         │  │ GRÁFICO SÉRIE PRODES     │  │
-│  │ (Folium)     │  │ (Plotly/Streamlit chart)  │  │
-│  │              │  │                           │  │
-│  └──────────────┘  └──────────────────────────┘  │
-│                                                  │
-│  ┌─────────────────────────────────────────────┐ │
-│  │ CARBON ESTIMATE CARD                        │ │
-│  │ VCU estimado: XX.XXX tCO2e (30 anos)       │ │
-│  │ Faixa: XX.XXX - YY.YYY                     │ │
-│  │ Método: ARR VCS VM0047 lite                 │ │
-│  └─────────────────────────────────────────────┘ │
-│                                                  │
-│  ┌──────────────────┐ ┌──────────────────────┐  │
-│  │ TFFF ELIGIBILITY │ │ PlaNAU ELIGIBILITY   │  │
-│  │ (verde/vermelho) │ │ (urbano se aplica)   │  │
-│  │ US$X.XXX/ano     │ │ Prioridade: alta     │  │
-│  │ Post-COP30 TFFF  │ │ PlaNAU COP30         │  │
-│  └──────────────────┘ └──────────────────────┘  │
-│                                                  │
-│  [Gerar Relatório MRV JSON] [Baixar PDF]         │
-└──────────────────────────────────────────────────┘
-```
+Layout implementado:
+- Título `🌳 MRV Amazon Lite — Pós-COP30`, `layout="wide"`
+- **Sidebar:** `Área de análise` (combobox) + `Área (ha)` + `Tipo de biomassa`
+- **4 opções de área:** Juruti/Mamuru, Área urbana (PlaNAU), Área degradada (TFFF) e
+  **Upload customizado** (carrega GeoJSON próprio via `file_uploader`)
+- **Mapa Folium/Leaflet** via `st_folium` + camada `folium.GeoJson`
+- **Série PRODES** em `st.line_chart`, integrada ao **API real** com fallback:
+  - Se `fetch_prodes`+`compute_deforestation_series` retornam dados → série real
+  - Se falhar ou vazio → série demo (zeros), com `st.caption` indicando a fonte
+- **Cards de métricas:** VCU líquido (30 anos) + Faixa IPCC; TFFF estimado/ano + Elegível/Não
+- **PlaNAU:** prioridade/déficit/custo, ou `st.info` "PlaNAU não se aplica"
+- **Disclaimer** (`st.caption`): "TFFF/PlaNAU: simulação ilustrativa pós-COP30 Belém"
+- **Relatório:** botão "Gerar relatório MRV" → download JSON + download versão texto.
+  O "Baixar PDF" do esboço foi substituído por export texto (leve, sem dependência pesada de PDF).
 
-**Implementação:**
-```python
-# web/app.py
-import streamlit as st
-import folium
-from streamlit_folium import st_folium
-import json
-
-st.set_page_config(page_title="MRV Amazon Lite", layout="wide")
-
-# Sidebar
-st.sidebar.title("MRV Amazon Lite")
-option = st.sidebar.selectbox("Área de análise", [
-    "Juruti — UMF V Mamuru-Arapiuns",
-    "Área urbana (demo PlaNAU)",
-    "Upload customizado"
-])
-
-if option == "Juruti — UMF V Mamuru-Arapiuns":
-    geojson_path = "data/samples/juruti_mamuru.geojson"
-elif option == "Área urbana (demo PlaNAU)":
-    geojson_path = "data/samples/example_urban.geojson"
-
-# ... renderizar mapa, gráficos, cards ...
-
-# Botão gerar relatório
-if st.button("Gerar Relatório MRV"):
-    report = {
-        "version": "1.0",
-        "generated_at": datetime.now().isoformat(),
-        "area": {"name": option, "ha": area_ha},
-        "deforestation_series": deforestation_dict,
-        "carbon_estimate": asdict(carbon_est),
-        "tfff": asdict(tfff_check) if tfff_check else None,
-        "planau": asdict(planau_check) if planau_check else None,
-        "disclaimer": "Estimativa educacional — não substitui certificação VCS/Gold Standard. Fontes: INPE PRODES/DETER, IPCC 2019, TFFF/COP30 Belém."
-    }
-    st.download_button("Download JSON", json.dumps(report, indent=2), "mrv_report.json")
-```
-
-**GeoJSON samples (dentro de `data/samples/`):**
-
-`juruti_mamuru.geojson`:
-```json
-{
-  "type": "FeatureCollection",
-  "features": [{
-    "type": "Feature",
-    "properties": {"name": "UMF V Mamuru-Arapiuns", "municipality": "Juruti", "state": "PA"},
-    "geometry": {
-      "type": "Polygon",
-      "coordinates": [[[-56.15, -2.55], [-55.95, -2.55], [-55.95, -2.29], [-56.15, -2.29], [-56.15, -2.55]]]
-    }
-  }]
-}
-```
-
-`example_urban.geojson`:
-```json
-{
-  "type": "FeatureCollection",
-  "features": [{
-    "type": "Feature",
-    "properties": {"name": "Centro Belém", "is_urban": true, "tree_cover_pct": 0.12},
-    "geometry": {
-      "type": "Polygon",
-      "coordinates": [[[-48.52, -1.47], [-48.47, -1.47], [-48.47, -1.43], [-48.52, -1.43], [-48.52, -1.47]]]
-    }
-  }]
-}
-```
-
-`example_degraded.geojson`:
-```json
-{
-  "type": "FeatureCollection",
-  "features": [{
-    "type": "Feature",
-    "properties": {"name": "Área degradada (demo)", "deforestation_pct_10yr": 0.35},
-    "geometry": {
-      "type": "Polygon",
-      "coordinates": [[[-55.5, -3.5], [-55.3, -3.5], [-55.3, -3.3], [-55.5, -3.3], [-55.5, -3.5]]]
-    }
-  }]
-}
-```
+> **Decisões vs. esboço original:**
+> - **Mapa:** usa `folium`+`st_folium` (não `st.map`), conforme `requirements.txt:2-3`.
+> - **Upload:** adicionado como 4ª opção, mantendo as 3 demos.
+> - **PRODES:** plugado ao API real com fallback de demo (a demo nunca trava por API externa).
+> - **PDF→texto:** substituído por download `.txt` para não inflar dependências.
 
 ---
 
-## Etapa 7 — Relatório MRV (20min)
+## Etapa 7 — Relatório MRV — ✅ CONCLUÍDA
 
 ### `src/mrv.py`
-
-Gera relatório JSON rastreável com hash SHA-256:
-```python
-# src/mrv.py
-import hashlib, json
-from datetime import datetime, timezone
-
-def generate_report(area_info: dict, deforestation: pd.Series, carbon: CarbonEstimate,
-                    tfff: TFFFCheck | None, planau: PlanauCheck | None) -> dict:
-    report = {
-        "version": "1.0",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "methodology": "ARR VCS VM0047 lite (educacional)",
-        "area": area_info,
-        "deforestation": {"series": deforestation.to_dict(), "source": "INPE PRODES"},
-        "carbon_estimate": {
-            "net_vcu": carbon.net_vcu,
-            "uncertainty": list(carbon.uncertainty_range),
-            "biomass_type": carbon.biomass_type,
-            "period_years": 30,
-        },
-        "post_cop30": {
-            "tfff": {"eligible": tfff.eligible, "payment_usd_year": tfff.estimated_payment_usd_year} if tfff else None,
-            "planau": {"priority": planau.priority_level, "deficit_trees": planau.deficit_trees} if planau else None,
-        },
-        "disclaimer": "Estimativa educacional — não substitui certificação VCS/Gold Standard. "
-                       "Fontes: INPE PRODES/DETER, IPCC 2019, TFFF Belém/COP30.",
-        "sources": ["INPE PRODES", "INPE DETER", "IPCC 2019", "VCS VM0047", "TFFF COP30 Belém 2025"],
-        "inspired_by": "Projeto CNPq RHAE 443538/2024-7 — Green Forest/UFRA/ACC"
-    }
-    report_bytes = json.dumps(report, sort_keys=True).encode()
-    report["checksum_sha256"] = hashlib.sha256(report_bytes).hexdigest()
-    return report
-```
+`generate_report(area_info, deforestation, carbon, tfff, planau)` → dict com:
+- `version`, `generated_at` (UTC ISO), `methodology`
+- `area`, `deforestation` (`series` + `source`), `carbon_estimate` (via `asdict`)
+- `post_cop30.tfff` / `post_cop30.planau`
+- `disclaimer`, `source`, `inspired_by` (CNPq RHAE 443538/2024-7 — Green Forest/UFRA/ACC)
+- `checksum_sha256` (SHA-256 de `json.dumps(sort_keys=True)`)
 
 ---
 
-## Etapa 8 — CI + Qualidade (15min)
+## Etapa 8 — CI + Qualidade — ✅ CONCLUÍDA (estendida)
 
 ### `.github/workflows/ci.yml`
-```yaml
-name: CI
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
-      - run: pip install -r requirements.txt
-      - run: pytest tests/ -v
-```
+`lint`: `ruff check src tests web` · `tests`: `pytest tests/ -v` (Python 3.11).
 
-### Ruff lint (adicionar ao requirements.txt: `ruff`)
-```bash
-ruff check src/ tests/
-ruff format src/ tests/
-```
+### `.github/workflows/screenshots.yml` — NOVO
+Roda sob demanda (`workflow_dispatch`), instala Playwright+chromium, executa
+`scripts/screenshots.py` e faz **upload dos PNGs como artefato** (GitHub Actions → Downloads).
 
-Rodar na máquina antes de commitar:
+Comandos de qualidade (validados 2026-09-02):
 ```bash
-ruff check src/ tests/ && ruff format src/ tests/ && pytest tests/ -v
+python -m pytest tests/ -v        # 10 passed
+ruff check src tests web scripts   # All checks passed!
+ruff format src tests web scripts  # already formatted
 ```
 
 ---
 
-## Etapa 9 — README.md (15min)
+## Etapa 9 — README.md — ✅ CONCLUÍDA
 
-Conteúdo mínimo:
-```markdown
-# MRV Amazon Lite
+Documenta: inspirado por (CNPq), O que faz (ARR/PRODES-DETER/TFFF/PlaNAU/MRV), Como rodar em
+3 comandos, Fontes, Limitações (com disclaimer exato), testes/lint.
 
-Pós-COP30 MVP: simulador ARR + monitor desmatamento + elegibilidade TFFF/PlaNAU
-para áreas na Amazônia, usando dados abertos.
+---
 
-Inspirado no projeto CNPq RHAE 443538/2024-7
-(Green Forest / UFRA / Amazon Connection Carbon).
+## Etapa 10 — Commit + GitHub — ✅ CÓDIGO FEITO / RELEASE PENDENTE
 
-## O que faz
+`git log`: `a6a4cb7`, `d6014fb`, `317bef2` — branch `main` sincronizada com `origin/main`.
+**Pendente:** `gh release create v0.1.0` (decisão editorial — ver CHECKLIST).
 
-1. Puxa séries PRODES/DETER para qualquer polígono (ou pontos de demo)
-2. Calcula VCUs estimados (ARR VCS VM0047 lite, 30 anos)
-3. Verifica elegibilidade **TFFF** (Tropical Forests Forever Facility — US$6,7bi, COP30 Belém)
-4. Verifica elegibilidade **PlaNAU** (Plano Nacional de Arborização Urbana — COP30)
-5. Gera relatório MRV JSON rastreável (hash SHA-256)
+---
 
-## Como rodar
+## Etapa 11 — Post LinkedIn — ⏸️ PENDENTE (editorial)
 
+Ainda não publicado. Template em CHECKLIST.md; pendente revisão final.
+
+---
+
+## NOVA Etapa 12 — Screenshots automatizadas — ✅ CONCLUÍDA
+
+### `scripts/screenshots.py` (Playwright + playwright-chromium)
+
+Gera os 3 PNGs dos use cases do dashboard diretamente no seu PC local:
+```
+01_juruti_mamuru.png      → Juruti (VCU ~380k + TFFF elegível + PlaNAU N/A)
+02_area_urbana_planau.png → Prioridade alta + déficit de árvores
+03_area_degradada_tfff.png→ TFFF não elegível
+```
+
+**Como rodar (local):**
 ```bash
-git clone https://github.com/Gaalbu/mrv-amazon-lite.git
-cd mrv-amazon-lite
-pip install -r requirements.txt
-streamlit run web/app.py
+.venv/bin/pip install playwright
+.venv/bin/python -m playwright install chromium
+make screenshots            # == python scripts/screenshots.py --out screenshots
 ```
 
-## Limitações
+Comportamento:
+1. Inicia o Streamlit em subprocesso headless (`--server.port`, default 8501)
+2. Espera o servidor responder (healthcheck com timeout)
+3. Abre o app no Chromium (viewport 1440x900)
+4. Para cada use case: seleciona a opção no combobox (clicando no input `[role="combobox"]`,
+   digitando um filtro e clicando no `[role="option"]` correspondente — necessário porque o
+   Streamlit 1.63 usa combobox, não `<select>` nativo)
+5. **Verifica** que o marcador esperado apareceu no body (ex.: "Não elegível") antes de salvar
+6. Salva `full_page` PNG em `--out` (default `screenshots/`)
 
-- Estimativa **educacional**, não substitui certificação VCS/Gold Standard
-- Biomassa baseada em tabelas IPCC 2019 por bioma (não inventário local)
-- Elegibilidade TFFF/PlaNAU é simplificada — uso real requer validação técnica
-```
+**Validação automática no CI:** `.github/workflows/screenshots.yml` faz o mesmo e publica como
+artefato, permitindo baixar os PNGs pelo GitHub Actions sem ter browser local.
+
+> **Nota:** `screenshots/` está no `.gitignore` (artefatos gerados local). Para versionar os PNGs
+> no repo, remover a linha `screenshots/` do `.gitignore`.
 
 ---
 
-## Etapa 10 — Commit + GitHub (5min)
+## Notas de manutenção
 
-```bash
-cd /home/gaalbu/codigos/mrv-amazon-lite
-git add .
-git commit -m "feat: MRV Amazon Lite — post-COP30 MVP
-
-ARR simulator + PRODES/DETER monitoring + TFFF/PlaNAU eligibility
-inspired by CNPq RHAE 443538/2024-7 (Green Forest/UFRA/ACC).
-
-COP30 Belém delivered TFFF (US$6.7bi), PlaNAU, Lei 15.190/2025.
-This repo operationalizes the MRV platform promised for Q3 2025."
-
-gh repo create Gaalbu/mrv-amazon-lite --public \
-  --description="MRV Amazon Lite: ARR simulator + TFFF/PlaNAU post-COP30 — open source PoC" \
-  --source=. --push
-
-gh release create v0.1.0 --title "v0.1.0 — Post-COP30 MVP" \
-  --notes "ARR simulation + PRODES monitoring + TFFF/PlaNAU eligibility. Inspired by Green Forest/UFRA CNPq project."
-```
-
----
-
-## Etapa 11 — Post LinkedIn (hoje)
-
-```
-Amazônia + Dados Abertos + Pós-COP30: lancei o MRV Amazon Lite
-
-A COP30 aconteceu em Belém (10-21/11/2025) e entregou TFFF (US$6,7bi),
-PlaNAU e a Lei 15.190/2025. O projeto CNPq RHAE da @Consultoria Green Forest
-/ UFRA / ACC previa uma plataforma MRV para apresentação na COP30.
-
-Agora, pós-COP30, transformei aquela ideia em MVP open-source:
-
-• Puxa séries PRODES/DETER para qualquer polígono na Amazônia
-• Calcula VCUs estimados (ARR VCS VM0047 lite, 30 anos)
-• Verifica elegibilidade TFFF e PlaNAU em minutos
-• Gera relatório MRV JSON rastreável
-
-Demo: [link GitHub Pages]
-Repo: github.com/Gaalbu/mrv-amazon-lite
-Replique: git clone && pip install -r requirements.txt && streamlit run web/app.py
-
-Dados: INPE PRODES/DETER, IPCC 2019, TFFF/Belém.
-Ferramenta educacional — não substitui certificação VCS.
-
-Próximo passo: integrar CAR/SIGEF como previsto no projeto CNPq.
-
-@ConsultoriaGreenForest @ufra_oficial @cop30nobrasil
-
-#COP30 #TFFF #PlaNAU #MRV #CarbonoAmazônia #Geotecnologias #OpenSource
-```
-
-**Tags:** @ConsultoriaGreenForest, @ufra_oficial, (ACC se tiver LinkedIn)
-**Hashtags:** #COP30 #TFFF #PlaNAU #MRV #CarbonoAmazônia #Geotecnologias #OpenSource
-
----
-
-## Notas
-
-- Se API MapBiomas falhar durante build: usar CSV estático em `data/mapbiomas_pa_2023.csv`
-- PRODES 2024 já disponível INPE (set/2025). DETER 2025 tempo real.
-- Todas APIs INPE: `https://terrabrasilis.dpi.inpe.br` — não requerem autenticação
-- Streamlit app roda em `localhost:8501`, GitHub Pages fica com README estático
+- **PRODES/DETER:** API INPE não requer autenticação, mas pode ficar lenta/indisponível — o app
+  roda o fallback demo sem travar (ver `web/app.py` try/except com `# noqa: BLE001`).
+- **Streamlit selectbox:** versões ≥1.5x usam combobox (não `<select>`); o script de screenshots
+  já trata isso. Se o Streamlit mudar a estrutura DOM, atualizar `select_area` em `screenshots.py`.
+- **Dockerfile (3.12)** vs **CI (3.11):** ambos atendem `requires-python >=3.11`.
+- **PDF:** não gerado; export em JSON e texto. Se necessário futuramente, adicionar `reportlab`
+  em `requirements.txt` e um botão extra.

@@ -30,6 +30,10 @@ INPE PRODES/DETER, IPCC 2019, VCS VM0047 e referências TFFF/PlaNAU COP30.
 
 Estimativa educacional — não substitui certificação VCS/Gold Standard. TFFF/PlaNAU aqui são simulações ilustrativas, não elegibilidade oficial.
 
-Testes: `python -m pytest tests/ -v` · lint: `ruff check src tests web`.
+Testes: `python -m pytest tests/ -v` · lint: `ruff check src tests web scripts`.
+
+Screenshots do dashboard (automatizadas): `make screenshots` gera os PNGs dos 3 use cases em
+`screenshots/` (requer `pip install playwright && python -m playwright install chromium`).
+Também disponível como workflow manual em `.github/workflows/screenshots.yml`.
 
 As estimativas não substituem certificação VCS/Gold Standard nem validação técnica, fundiária ou ambiental. As APIs externas podem mudar ou ficar indisponíveis.
