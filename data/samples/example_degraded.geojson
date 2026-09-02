@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"Área degradada (demo)","deforestation_pct_10yr":0.35},"geometry":{"type":"Polygon","coordinates":[[[-55.5,-3.5],[-55.3,-3.5],[-55.3,-3.3],[-55.5,-3.3],[-55.5,-3.5]]]}}]}

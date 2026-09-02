@@ -1,0 +1,9 @@
+{
+  "methodology": "VCS_VM0047_lite",
+  "ipcc_biomass_amazon": {
+    "terra_firme": {"mean_tco2e_ha": 220, "min": 150, "max": 300},
+    "varzea": {"mean_tco2e_ha": 180, "min": 100, "max": 250},
+    "igapo": {"mean_tco2e_ha": 150, "min": 80, "max": 220}
+  },
+  "vcs_params": {"leakage_factor": 0.10, "buffer_pool": 0.20, "restoration_rate": 0.8}
+}

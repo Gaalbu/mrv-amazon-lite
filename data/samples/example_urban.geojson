@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"Centro Belém","is_urban":true,"tree_cover_pct":0.12},"geometry":{"type":"Polygon","coordinates":[[[-48.52,-1.47],[-48.47,-1.47],[-48.47,-1.43],[-48.52,-1.43],[-48.52,-1.47]]]}}]}
