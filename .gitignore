@@ -2,8 +2,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
-.ruf_cache/
 .venv/
 .env
 .streamlit/
 *.egg-info/
+screenshots/

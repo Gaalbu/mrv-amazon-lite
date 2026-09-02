@@ -34,6 +34,7 @@ def generate_report(
             "VCS VM0047",
             "TFFF COP30 Belém 2025",
         ],
+        "inspired_by": "Projeto CNPq RHAE 443538/2024-7 — Green Forest/UFRA/ACC",
     }
     digest = hashlib.sha256(
         json.dumps(report, sort_keys=True, default=str).encode()

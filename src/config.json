@@ -5,5 +5,6 @@
     "varzea": {"mean_tco2e_ha": 180, "min": 100, "max": 250},
     "igapo": {"mean_tco2e_ha": 150, "min": 80, "max": 220}
   },
-  "vcs_params": {"crediting_period_years": 30, "leakage_factor": 0.10, "buffer_pool": 0.20, "discount_rate": 0.05, "restoration_rate": 0.8}
+  "vcs_params": {"crediting_period_years": 30, "leakage_factor": 0.10, "buffer_pool": 0.20, "discount_rate": 0.05, "restoration_rate": 0.8},
+  "cop30_legacy": {"tfff_eligible": true, "note": "Parâmetros alinhados ao post-COP30: TFFF exige resultados comprovados em conservação"}
 }

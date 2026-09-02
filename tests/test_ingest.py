@@ -2,12 +2,56 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import Polygon
 
-from src.ingest import _validate_bbox, compute_deforestation_series, fetch_mapbiomas
+from src.ingest import (
+    _validate_bbox,
+    compute_deforestation_series,
+    fetch_mapbiomas,
+    fetch_prodes,
+)
 
 
 def test_bbox_validation():
     with pytest.raises(ValueError):
         _validate_bbox([-1, 1, 1, -1])
+
+
+def test_fetch_prodes_returns_gdf(monkeypatch):
+    features = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"year": 2021, "area_ha": 12},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [-56.1, -2.5],
+                            [-56.0, -2.5],
+                            [-56.0, -2.4],
+                            [-56.1, -2.4],
+                            [-56.1, -2.5],
+                        ]
+                    ],
+                },
+            }
+        ],
+    }
+
+    class FakeResponse:
+        def json(self):
+            return features
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr("src.ingest.requests.get", lambda *a, **k: FakeResponse())
+
+    frame = fetch_prodes([-56.15, -2.55, -55.95, -2.29], years=range(2016, 2025))
+    assert isinstance(frame, gpd.GeoDataFrame)
+    assert not frame.empty
+    assert {"geometry", "year"}.issubset(frame.columns)
+    assert list(frame["year"]) == [2021]
 
 
 def test_compute_deforestation_series():

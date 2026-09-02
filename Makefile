@@ -6,3 +6,5 @@ run:
 	streamlit run web/app.py
 build:
 	python -m build
+screenshots:
+	python scripts/screenshots.py --out screenshots
