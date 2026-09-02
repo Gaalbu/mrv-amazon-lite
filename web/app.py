@@ -35,12 +35,19 @@ carbon = estimate_vcu(area_ha, biomass)
 low, high = estimate_vcu_range(area_ha, biomass)
 tfff = check_tfff_eligibility(deforestation, area_ha=area_ha)
 planau = check_planau_eligibility(is_urban, tree_cover, area_ha)
+prodes_series = pd.Series(
+    {year: 0.0 for year in range(2016, 2025)}, name="Área desmatada (ha)"
+)
 
 left, right = st.columns(2)
 left.metric("VCU líquido estimado (30 anos)", f"{carbon.net_vcu:,.0f} tCO₂e")
 left.write(f"Faixa IPCC: {low.net_vcu:,.0f} – {high.net_vcu:,.0f} tCO₂e")
 right.metric("TFFF estimado / ano", f"US$ {tfff.estimated_payment_usd_year:,.2f}")
 right.write("Elegível" if tfff.eligible else "Não elegível")
+st.caption("TFFF/PlaNAU: simulação ilustrativa pós-COP30 Belém")
+
+st.subheader("Série PRODES")
+st.line_chart(prodes_series)
 
 st.subheader("Área selecionada")
 st.map(area.to_crs("EPSG:4326").centroid)

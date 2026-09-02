@@ -26,6 +26,7 @@ def generate_report(
             "planau": asdict(planau) if planau else None,
         },
         "disclaimer": "Estimativa educacional — não substitui certificação VCS/Gold Standard.",
+        "demo_note": "demonstração edu; TFFF/PlaNAU são simulações ilustrativas",
         "sources": [
             "INPE PRODES",
             "INPE DETER",

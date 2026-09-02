@@ -30,7 +30,7 @@ def check_tfff_eligibility(
     if area_ha < 0:
         raise ValueError("area_ha must be non-negative")
     reasons = []
-    eligible = deforestation_pct < 0.05 and has_rl and deforestation_pct <= 0.20
+    eligible = deforestation_pct < 0.05 and has_rl
     if deforestation_pct >= 0.20:
         reasons.append("Desmatamento acumulado acima de 20%")
     elif deforestation_pct >= 0.05:

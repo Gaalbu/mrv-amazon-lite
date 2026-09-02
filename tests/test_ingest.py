@@ -2,7 +2,7 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import Polygon
 
-from src.ingest import _validate_bbox, compute_deforestation_series
+from src.ingest import _validate_bbox, compute_deforestation_series, fetch_mapbiomas
 
 
 def test_bbox_validation():
@@ -25,3 +25,8 @@ def test_compute_deforestation_series():
     series = compute_deforestation_series(prodes, target)
     assert set(series.index) == {2020, 2021}
     assert series[2020] > series[2021]
+
+
+def test_fetch_mapbiomas_fallback_has_schema():
+    frame = fetch_mapbiomas(collection=9, year=2099, state="XX")
+    assert list(frame.columns) == ["state", "year", "class", "area_ha"]
