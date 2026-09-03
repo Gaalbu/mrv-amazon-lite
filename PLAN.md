@@ -210,14 +210,14 @@ Documenta: inspirado por (CNPq), O que faz (ARR/PRODES-DETER/TFFF/PlaNAU/MRV), C
 
 ## Etapa 10 — Commit + GitHub — ✅ CÓDIGO FEITO / RELEASE PENDENTE
 
-`git log`: `a6a4cb7`, `d6014fb`, `317bef2` — branch `main` sincronizada com `origin/main`.
-**Pendente:** `gh release create v0.1.0` (decisão editorial — ver CHECKLIST).
+`git log`: branch `main` sincronizada com `origin/main`.
+**Concluído:** release `v0.1.0` publicada em https://github.com/Gaalbu/mrv-amazon-lite/releases/tag/v0.1.0.
 
 ---
 
 ## Etapa 11 — Post LinkedIn — ⏸️ PENDENTE (editorial)
 
-Ainda não publicado. Template em CHECKLIST.md; pendente revisão final.
+Ainda não publicado. Template em CHECKLIST.md; requer confirmação final antes da comunicação pública.
 
 ---
 

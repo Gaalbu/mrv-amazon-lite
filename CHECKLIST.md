@@ -6,7 +6,7 @@ Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 > **Atualização 2026-09-02:** gaps de código resolvidos (Folium, Upload customizado, PRODES real
 > com fallback, export JSON+texto; `cop30_legacy`, `inspired_by`, teste `fetch_prodes`) e **prova
 > visual automatizada** criada e executada (screenshots gerados e salvos no PC). Restam apenas os
-> itens editoriais (release v0.1.0 + post LinkedIn).
+> item editorial do post LinkedIn).
 
 ---
 
@@ -75,7 +75,7 @@ Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 - [x] 4 logs colados (pytest, ruff check, ruff format, docker build)
 - [x] 3 screenshots dos use cases gerados e salvos em `screenshots/`
 - [x] **Autorizado:** `gh repo create Gaalbu/mrv-amazon-lite --public --source=. --push`
-- [ ] **Autorizado:** `gh release create v0.1.0` com notes pós-COP30
+- [x] **Autorizado/executado:** `gh release create v0.1.0` com notes pós-COP30 — https://github.com/Gaalbu/mrv-amazon-lite/releases/tag/v0.1.0
 - [ ] Post LinkedIn final revisado (sem "COP30 vem aí"; usar "COP30 Belém 10-21/11/2025 entregou...")
 
 ## Evidências — execução em 2026-09-02
@@ -103,4 +103,5 @@ screenshots/03_area_degradada_tfff.png (1440x900 PNG)
 
 Prova visual agora é **automatizada** via `scripts/screenshots.py` (Playwright) e roda tanto local
 (`make screenshots`) quanto no CI (`.github/workflows/screenshots.yml`, publicada como artefato).
-O release v0.1.0 e o post LinkedIn permanecem deliberadamente pendentes (itens editoriais).
+O release v0.1.0 foi publicado após CI verde. O post LinkedIn permanece pendente por exigir
+confirmação final de comunicação pública.
