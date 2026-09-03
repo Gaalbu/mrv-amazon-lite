@@ -26,6 +26,9 @@ streamlit run web/app.py
 
 INPE PRODES/DETER, IPCC 2019, VCS VM0047 e referências TFFF/PlaNAU COP30.
 
+O endpoint demonstrativo atual usa a camada `prodes_para_q`, portanto a cobertura PRODES
+integrada está limitada ao Pará; áreas sem retorno exibem fallback demo identificado na tela.
+
 ## Limitações
 
 Estimativa educacional — não substitui certificação VCS/Gold Standard. TFFF/PlaNAU aqui são simulações ilustrativas, não elegibilidade oficial.

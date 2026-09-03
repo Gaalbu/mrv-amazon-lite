@@ -37,7 +37,7 @@ def check_tfff_eligibility(
         reasons.append("Desmatamento acumulado não atende ao limite de 5%")
     if not has_rl:
         reasons.append("Reserva Legal não comprovada")
-    if has_pmfs:
+    if has_pmfs and eligible:
         reasons.append("PMFS ativo confirma a análise de manejo")
     if eligible and not reasons:
         reasons.append(

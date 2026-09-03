@@ -50,12 +50,12 @@ Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 ## QUALIDADE
 
 ### 6. Testes e lint — LOGS OBRIGATÓRIOS (cole os 3 abaixo)
-- [x] Log de `python -m pytest tests/ -v` — 10 testes verdes (sem `FAILED`/`ERROR`)
+- [x] Log de `python -m pytest tests/ -v` — 14 testes verdes (sem `FAILED`/`ERROR`)
 - [x] Log de `ruff check src tests web scripts` — sem warnings
 - [x] Log de `ruff format src tests web scripts` — sem alterações pendentes
 
 ### 7. Prova visual — DEMO (automatizada, salva no PC)
-- [x] Screenshot com **Juruti — UMF V Mamuru-Arapiuns** (VCU ~380k + TFFF elegível + PlaNAU "não se aplica") — `screenshots/01_juruti_mamuru.png`
+- [x] Screenshot com **Juruti — UMF V Mamuru-Arapiuns** (VCU ~12,7k + TFFF elegível + PlaNAU "não se aplica") — `screenshots/01_juruti_mamuru.png`
 - [x] Screenshot com **Área urbana demo** (PlaNAU prioridade alta + déficit árvores) — `screenshots/02_area_urbana_planau.png`
 - [x] Screenshot com **Área degradada demo** (TFFF não elegível) — `screenshots/03_area_degradada_tfff.png`
 - [x] Geração automatizada por `scripts/screenshots.py` (Playwright) — roda local (`make screenshots`) e no CI (`screenshots.yml` → artefato)
@@ -71,7 +71,7 @@ Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 
 ## GATE FINAL (somente marcar quando os itens acima estiverem verdes)
 
-- [ ] Todos os 3 bloqueadores resolvidos (prova visual agora coberta por automação)
+- [x] Todos os 3 bloqueadores resolvidos (prova visual coberta por automação)
 - [x] 4 logs colados (pytest, ruff check, ruff format, docker build)
 - [x] 3 screenshots dos use cases gerados e salvos em `screenshots/`
 - [x] **Autorizado:** `gh repo create Gaalbu/mrv-amazon-lite --public --source=. --push`

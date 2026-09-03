@@ -8,6 +8,7 @@ import pandas as pd
 import requests
 
 WFS_URL = "https://terrabrasilis.dpi.inpe.br/wfs/terrabrasilis"
+DEMO_YEARS = range(2016, 2025)
 
 
 def _validate_bbox(bbox: list[float]) -> tuple[float, float, float, float]:
@@ -42,6 +43,30 @@ def fetch_prodes(
     if "year" in frame:
         frame = frame[frame["year"].isin(years)]
     return frame
+
+
+def prodes_series_with_fallback(
+    target_area: gpd.GeoDataFrame,
+    fetcher=fetch_prodes,
+    years: range = DEMO_YEARS,
+) -> tuple[pd.Series, str]:
+    """Return PRODES data for an area, or a visible demo fallback on API failure."""
+    demo = pd.Series({year: 0.0 for year in years}, name="Área desmatada (ha)")
+    bounds = target_area.total_bounds
+    try:
+        frame = fetcher([bounds[0], bounds[1], bounds[2], bounds[3]], years=years)
+        if frame.empty:
+            return (
+                demo,
+                "INPE PRODES (demo — sem dados na bbox; cobertura disponível só para PA)",
+            )
+        series = compute_deforestation_series(frame, target_area)
+        return series.reindex(years).fillna(0.0), "INPE PRODES (ao vivo)"
+    except (OSError, ValueError, requests.RequestException):
+        return (
+            demo,
+            "INPE PRODES (fallback demo — API indisponível ou cobertura só para PA)",
+        )
 
 
 def fetch_deter(bbox: list[float], months: int = 12) -> gpd.GeoDataFrame:

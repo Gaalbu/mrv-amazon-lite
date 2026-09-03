@@ -7,6 +7,7 @@ from src.ingest import (
     compute_deforestation_series,
     fetch_mapbiomas,
     fetch_prodes,
+    prodes_series_with_fallback,
 )
 
 
@@ -74,3 +75,30 @@ def test_compute_deforestation_series():
 def test_fetch_mapbiomas_fallback_has_schema():
     frame = fetch_mapbiomas(collection=9, year=2099, state="XX")
     assert list(frame.columns) == ["state", "year", "class", "area_ha"]
+
+
+def test_empty_prodes_and_non_intersection_return_empty_series():
+    target = gpd.GeoDataFrame(
+        geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])], crs="EPSG:4326"
+    )
+    empty = gpd.GeoDataFrame({"year": []}, geometry=[], crs="EPSG:4326")
+    assert compute_deforestation_series(empty, target).empty
+    outside = gpd.GeoDataFrame(
+        {"year": [2020]},
+        geometry=[Polygon([(2, 2), (3, 2), (3, 3), (2, 3)])],
+        crs="EPSG:4326",
+    )
+    assert compute_deforestation_series(outside, target).empty
+
+
+def test_prodes_network_failure_returns_visible_fallback():
+    target = gpd.GeoDataFrame(
+        geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])], crs="EPSG:4326"
+    )
+
+    def failing_fetcher(*args, **kwargs):
+        raise OSError("network unavailable")
+
+    series, source = prodes_series_with_fallback(target, fetcher=failing_fetcher)
+    assert len(series) == 9
+    assert "fallback demo" in source

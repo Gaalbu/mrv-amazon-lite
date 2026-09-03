@@ -9,7 +9,7 @@ from src.tfff import check_tfff_eligibility
 
 def test_vcu_100ha_terra_firme():
     result = estimate_vcu(100)
-    assert result.net_vcu == pytest.approx(380160)
+    assert result.net_vcu == pytest.approx(12672)
 
 
 def test_vcu_range_and_deductions():
@@ -46,3 +46,13 @@ def test_invalid_inputs():
         estimate_vcu(-1)
     with pytest.raises(ValueError):
         check_tfff_eligibility(1.1)
+
+
+def test_zero_area_vcu_is_zero():
+    assert estimate_vcu(0).net_vcu == 0
+
+
+def test_failed_tfff_criteria_do_not_claim_pmfs_confirmation():
+    result = check_tfff_eligibility(0.25, has_pmfs=True)
+    assert result.eligible is False
+    assert "PMFS ativo confirma a análise de manejo" not in result.reasons

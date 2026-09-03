@@ -8,7 +8,7 @@ Streamlit server in a subprocess, waits for it, drives the sidebar through the
 three demo areas, and saves a full-page PNG for each use case.
 
 Based on the 3 use cases documented in CHECKLIST.md:
-    1. Juruti — UMF V Mamuru-Arapiuns  (VCU ~380k + TFFF elegível + PlaNAU N/A)
+    1. Juruti — UMF V Mamuru-Arapiuns  (VCU ~12,7k + TFFF elegível + PlaNAU N/A)
     2. Área urbana (demo PlaNAU)        (prioridade alta + déficit de árvores)
     3. Área degradada (demo TFFF)       (TFFF não elegível)
 """

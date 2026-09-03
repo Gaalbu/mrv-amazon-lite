@@ -103,17 +103,20 @@ README.md
 
 Fórmula:
 ```
-gross = restoration_rate * area * tco2e_ha * years   # restoration_rate = 0.8
+gross = restoration_rate * area * tco2e_ha * (years / baseline_years)   # restoration_rate = 0.8
 leakage = gross * 0.10
 pool    = (gross - leakage) * 0.20
 net     = gross - leakage - pool
 uncertainty: ±30% sobre o net
 ```
 
-> **Nota de precisão:** o esboço original dizia "100ha terra firme 30 anos → ~52.800 VCU".
-> Isso é **incorreto** perante a fórmula. O valor real é `0.8 * 100 * 220 * 30 = 528.000 gross`
-> → **380.160 net** (para `conservação`). O PLAN está corrigido; `tests/test_core.py:12`
-> valida `380160`.
+> **Correção metodológica (2026-09):** `tco2e_ha` (tabela IPCC) representa o **estoque** de
+> carbono acumulado ao final do período-base de créditos (`crediting_period_years` = 30 em
+> `config.json`), não uma taxa anual. A fórmula anterior multiplicava esse estoque pelo número
+> de anos (`* years`), inflando o resultado em ~30x. A fórmula corrigida escala linearmente só
+> quando `years` difere do período-base. Para 100ha terra firme, 30 anos:
+> `gross = 0.8 * 100 * 220 * (30/30) = 17.600` → **net = 12.672 tCO2e** (antes: 380.160).
+> `tests/test_core.py:12` valida `12672`.
 
 ---
 
@@ -224,7 +227,7 @@ Ainda não publicado. Template em CHECKLIST.md; pendente revisão final.
 
 Gera os 3 PNGs dos use cases do dashboard diretamente no seu PC local:
 ```
-01_juruti_mamuru.png      → Juruti (VCU ~380k + TFFF elegível + PlaNAU N/A)
+01_juruti_mamuru.png      → Juruti (VCU ~12,7k + TFFF elegível + PlaNAU N/A)
 02_area_urbana_planau.png → Prioridade alta + déficit de árvores
 03_area_degradada_tfff.png→ TFFF não elegível
 ```
@@ -251,6 +254,60 @@ artefato, permitindo baixar os PNGs pelo GitHub Actions sem ter browser local.
 
 > **Nota:** `screenshots/` está no `.gitignore` (artefatos gerados local). Para versionar os PNGs
 > no repo, remover a linha `screenshots/` do `.gitignore`.
+
+---
+
+## NOVA Etapa 13 — Code review (REVIEW_PROMPT.md) — 🔧 CORREÇÕES PENDENTES
+
+Duas rodadas de revisão seguindo `REVIEW_PROMPT.md` (critérios: correção técnica/fórmulas,
+robustez/segurança, qualidade, ética/transparência). Veredito da 2ª rodada: **Aprovar** para
+`gh release v0.1.0` — nenhum bloqueador. Já corrigidos nesta sessão (não repetir):
+
+- ✅ `src/carbon.py` — fórmula de `gross_vcu` corrigida (não multiplica mais estoque IPCC ×
+  `crediting_years` direto; agora escala por `crediting_years / baseline_years`). Teste
+  `tests/test_core.py:12` validado com `12672` (era `380160`).
+- ✅ `src/planau.py:45` — `area_verde_gap_ha` agora deriva de `deficit / PLANAU_TARGET_TREES_PER_HA`
+  em vez de constante desconectada.
+- ✅ `web/app.py:39-60` — leitura/reprojeção do GeoJSON de upload envolvida em `try/except`
+  com mensagens amigáveis (`st.error` + `st.stop()`), incluindo checagem de `area.crs is None`.
+- ✅ Referências desatualizadas a "VCU ~380k" corrigidas para "~12,7k" em
+  `scripts/screenshots.py:11`, `CHECKLIST.md:58`, `PLAN.md:230`.
+
+**Pendente — instruções para o próximo agente corrigir tudo abaixo, um item por vez, rodando
+`pytest tests/ -v`, `ruff check src tests web scripts` e `ruff format --check src tests web
+scripts` depois de cada mudança:**
+
+1. 🟠 **`src/ingest.py:41`** — `fetch_prodes` usa `typeName` fixo `"prodes_para_q"`, que pelo
+   nome parece restrito à camada do **Pará**, não à Amazônia Legal inteira. Hoje, se a área
+   analisada estiver fora dessa cobertura, `fetch_prodes` retorna vazio e o app cai
+   silenciosamente no fallback demo sem avisar o usuário que a área está fora de cobertura real.
+   **Correção:** adicionar aviso explícito na UI (`web/app.py`, no bloco do `prodes_source`)
+   quando a série vier vazia por falta de cobertura, e documentar a limitação (só-PA) no
+   README/CHECKLIST. Se houver uma camada WFS nacional/Amazônia Legal disponível no
+   TerraBrasilis, avaliar trocar `prodes_para_q` por ela.
+
+2. 🟡 **`src/tfff.py:40-41`** — quando `has_pmfs=True` mas `eligible=False` (reprovado por outro
+   critério), a razão "PMFS ativo confirma a análise de manejo" ainda é adicionada à lista de
+   motivos, soando contraditório numa lista de reprovação. **Correção:** condicionar essa razão
+   a `eligible=True`, ou mover para uma lista separada de "fatores positivos" independente do
+   veredito final.
+
+3. 🟡 **`.github/workflows/ci.yml`** — roda só `ruff check src tests web` + `pytest`; não inclui
+   `ruff format --check` nem lint de `scripts/`, divergindo da validação descrita no
+   `REVIEW_PROMPT.md`. **Correção:** adicionar `ruff check scripts` e um step
+   `ruff format --check src tests web scripts` ao workflow.
+
+4. ⚪ **Testes de borda faltando** em `tests/test_core.py` (ou novo arquivo `tests/test_edge_cases.py`):
+   - `compute_deforestation_series` com `prodes_gdf` vazio ou sem interseção com `target_area`
+     (deve retornar série vazia, não lançar exceção).
+   - `estimate_vcu(area_ha=0)` — deve retornar `net_vcu=0`, não erro.
+   - Fallback do `web/app.py` quando `fetch_prodes` lança exceção (hoje só coberto
+     indiretamente via `ingest`, não via um teste que simule falha de rede no fluxo do app).
+
+5. ⚪ **`scripts/screenshots.py`** — usa `wait_for_timeout` fixo (400/600/1500/2000/3000ms) em
+   vez de esperas condicionais, frágil a mudanças de versão do Streamlit ou variação de latência
+   em CI. **Correção (opcional, baixa prioridade):** trocar por
+   `expect(locator).to_be_visible()`/`to_contain_text()` da API do Playwright onde possível.
 
 ---
 

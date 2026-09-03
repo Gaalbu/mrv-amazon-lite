@@ -36,11 +36,16 @@ def estimate_vcu(
     if biomass is None:
         raise ValueError(f"Unknown biomass type: {biomass_type}")
     params = settings["vcs_params"]
+    baseline_years = params["crediting_period_years"]
+    # mean_tco2e_ha (tabela IPCC) é o estoque de carbono acumulado ao final do
+    # período-base de créditos, não uma taxa anual — multiplicar pelo número
+    # de anos inflaria o resultado. Escalamos linearmente só quando
+    # crediting_years difere do período-base assumido pela tabela.
     gross = (
         params["restoration_rate"]
         * area_ha
         * biomass["mean_tco2e_ha"]
-        * crediting_years
+        * (crediting_years / baseline_years)
     )
     leakage = gross * params["leakage_factor"]
     buffer = (gross - leakage) * params["buffer_pool"]

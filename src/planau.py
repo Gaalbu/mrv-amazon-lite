@@ -42,7 +42,7 @@ def check_planau_eligibility(
         tree_cover_pct,
         current,
         deficit,
-        max(0.0, 360000 * area_ha / 1000000),
+        deficit / PLANAU_TARGET_TREES_PER_HA,
         priority,
         deficit * PLANAU_COST_PER_TREE_BRL,
         "PlaNAU/COP30 nov 2025",
