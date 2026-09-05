@@ -9,12 +9,16 @@ import requests
 from shapely import get_num_coordinates
 
 WFS_URL = "https://terrabrasilis.dpi.inpe.br/wfs/terrabrasilis"
+ICMBIO_WFS_URL = "https://geoservicos.inde.gov.br/geoserver/ICMBio/ows"
+ICMBIO_UCS_LAYER = "ICMBio:limiteucsfederais_a"
 DEMO_YEARS = range(2016, 2025)
 TARGET_CRS = "EPSG:4326"
 AREA_CRS = "EPSG:6933"  # Equal-area CRS used only for area calculation.
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 MAX_FEATURES = 1_000
 MAX_COORDINATES = 100_000
+ICMBIO_EMPTY_COLUMNS = ["name", "geometry"]
+ICMBIO_NAME_COLUMNS = ("name", "nome", "nom_uc", "nm_uc")
 
 
 def validate_upload_size(size: int | None) -> None:
@@ -116,6 +120,85 @@ def fetch_prodes(
     if "year" in frame:
         frame = frame[frame["year"].isin(years)]
     return frame
+
+
+def _empty_icmbio_ucs() -> gpd.GeoDataFrame:
+    return gpd.GeoDataFrame(
+        {
+            "name": pd.Series(dtype="string"),
+            "geometry": gpd.GeoSeries([], crs=TARGET_CRS),
+        },
+        geometry="geometry",
+        crs=TARGET_CRS,
+    )
+
+
+def fetch_icmbio_ucs(bbox: list[float]) -> gpd.GeoDataFrame:
+    """Fetch federal conservation units from the official ICMBio WFS."""
+    west, south, east, north = _validate_bbox(bbox)
+    params = {
+        "service": "WFS",
+        "version": "2.0.0",
+        "request": "GetFeature",
+        "typeNames": ICMBIO_UCS_LAYER,
+        "outputFormat": "application/json",
+        "bbox": f"{west},{south},{east},{north},{TARGET_CRS}",
+    }
+    response = requests.get(ICMBIO_WFS_URL, params=params, timeout=30)
+    response.raise_for_status()
+    features = response.json().get("features", [])
+    if not features:
+        return _empty_icmbio_ucs()
+    return gpd.GeoDataFrame.from_features(features, crs=TARGET_CRS)
+
+
+def summarize_icmbio_overlap(
+    icmbio_ucs: gpd.GeoDataFrame, target_area: gpd.GeoDataFrame
+) -> dict[str, object]:
+    """Summarize spatial overlap without inferring legal eligibility."""
+    if icmbio_ucs.crs is None or target_area.crs is None:
+        raise ValueError("ICMBio e a área-alvo precisam informar um CRS.")
+    if icmbio_ucs.empty or target_area.empty:
+        return {"count": 0, "names": [], "overlap_area_ha": 0.0}
+
+    units = icmbio_ucs.to_crs(TARGET_CRS)
+    target = target_area.to_crs(TARGET_CRS)
+    name_column = next(
+        (column for column in ICMBIO_NAME_COLUMNS if column in units.columns), None
+    )
+    names = units[name_column] if name_column else pd.Series(index=units.index)
+    units = gpd.GeoDataFrame(
+        {"_source_id": range(len(units)), "_name": names.tolist()},
+        geometry=units.geometry.tolist(),
+        crs=TARGET_CRS,
+    )
+    intersections = gpd.overlay(
+        units, target[["geometry"]], how="intersection", keep_geom_type=False
+    )
+    if intersections.empty:
+        return {"count": 0, "names": [], "overlap_area_ha": 0.0}
+
+    metric = intersections.to_crs(AREA_CRS)
+    positive = metric.geometry.area > 0
+    intersections = intersections.loc[positive]
+    if intersections.empty:
+        return {"count": 0, "names": [], "overlap_area_ha": 0.0}
+
+    overlap = intersections.geometry.union_all()
+    overlap_area_ha = float(
+        gpd.GeoSeries([overlap], crs=TARGET_CRS).to_crs(AREA_CRS).area.iloc[0] / 10_000
+    )
+    available_names = []
+    for name in intersections["_name"]:
+        if name is not None and not pd.isna(name) and str(name).strip():
+            text = str(name).strip()
+            if text not in available_names:
+                available_names.append(text)
+    return {
+        "count": int(intersections["_source_id"].nunique()),
+        "names": available_names,
+        "overlap_area_ha": overlap_area_ha,
+    }
 
 
 def prodes_series_with_fallback(

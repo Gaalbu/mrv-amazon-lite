@@ -1,14 +1,17 @@
 import geopandas as gpd
 import pytest
+import requests
 from shapely.geometry import LineString, Polygon
 
 from src.ingest import (
     _validate_bbox,
     compute_deforestation_series,
+    fetch_icmbio_ucs,
     fetch_mapbiomas,
     fetch_prodes,
     prodes_series_with_fallback,
     read_and_validate_geojson,
+    summarize_icmbio_overlap,
     validate_geodataframe,
     validate_upload_size,
 )
@@ -188,3 +191,112 @@ def test_read_and_validate_geojson_rejects_empty_upload():
 def test_validate_upload_size_rejects_oversized_upload():
     with pytest.raises(ValueError, match="grande"):
         validate_upload_size(5 * 1024 * 1024 + 1)
+
+
+def test_fetch_icmbio_ucs_returns_geojson_in_wgs84(monkeypatch):
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"name": "UC teste"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [[-55.0, -2.0], [-54.9, -2.0], [-54.9, -1.9], [-55.0, -2.0]]
+                    ],
+                },
+            }
+        ],
+    }
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    def fake_get(url, **kwargs):
+        captured.update(url=url, kwargs=kwargs)
+        return FakeResponse()
+
+    monkeypatch.setattr("src.ingest.requests.get", fake_get)
+
+    frame = fetch_icmbio_ucs([-56, -3, -54, -1])
+
+    assert frame.crs.to_epsg() == 4326
+    assert list(frame["name"]) == ["UC teste"]
+    assert captured["kwargs"]["params"]["typeNames"] == "ICMBio:limiteucsfederais_a"
+    assert captured["kwargs"]["params"]["outputFormat"] == "application/json"
+    assert captured["kwargs"]["params"]["bbox"].endswith(",EPSG:4326")
+    assert captured["kwargs"]["timeout"] == 30
+
+
+def test_fetch_icmbio_ucs_empty_response_has_predictable_schema(monkeypatch):
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"type": "FeatureCollection", "features": []}
+
+    monkeypatch.setattr(
+        "src.ingest.requests.get", lambda *args, **kwargs: FakeResponse()
+    )
+
+    frame = fetch_icmbio_ucs([-56, -3, -54, -1])
+
+    assert frame.empty
+    assert list(frame.columns) == ["name", "geometry"]
+    assert frame.crs.to_epsg() == 4326
+
+
+def test_fetch_icmbio_ucs_propagates_api_unavailability(monkeypatch):
+    def unavailable(*args, **kwargs):
+        raise requests.Timeout("ICMBio unavailable")
+
+    monkeypatch.setattr("src.ingest.requests.get", unavailable)
+
+    with pytest.raises(requests.Timeout):
+        fetch_icmbio_ucs([-56, -3, -54, -1])
+
+
+def test_summarize_icmbio_overlap_counts_names_and_union_area():
+    ucs = gpd.GeoDataFrame(
+        {"name": ["UC sobreposta", "UC fora"]},
+        geometry=[
+            Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]),
+            Polygon([(2, 2), (3, 2), (3, 3), (2, 3)]),
+        ],
+        crs="EPSG:4326",
+    )
+    target = gpd.GeoDataFrame(
+        geometry=[Polygon([(0.5, 0.5), (1.5, 0.5), (1.5, 1.5), (0.5, 0.5)])],
+        crs="EPSG:4326",
+    )
+
+    summary = summarize_icmbio_overlap(ucs, target)
+
+    assert summary["count"] == 1
+    assert summary["names"] == ["UC sobreposta"]
+    assert summary["overlap_area_ha"] > 0
+
+
+def test_summarize_icmbio_overlap_returns_empty_summary_without_intersection():
+    ucs = gpd.GeoDataFrame(
+        {"name": ["UC fora"]},
+        geometry=[Polygon([(2, 2), (3, 2), (3, 3), (2, 3)])],
+        crs="EPSG:4326",
+    )
+    target = gpd.GeoDataFrame(
+        geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 0)])],
+        crs="EPSG:4326",
+    )
+
+    assert summarize_icmbio_overlap(ucs, target) == {
+        "count": 0,
+        "names": [],
+        "overlap_area_ha": 0.0,
+    }
