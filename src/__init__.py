@@ -1,1 +1,1 @@
-"""Core modules for MRV Amazon Lite."""
+"""Core modules for Diagnóstico Territorial Preliminar."""

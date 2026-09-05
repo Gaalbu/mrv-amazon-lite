@@ -38,7 +38,7 @@ aplicação.
 ## Como rodar
 
 ```bash
-git clone https://github.com/Gaalbu/mrv-amazon-lite.git
+git clone https://github.com/Gaalbu/diagnostico-territorial-preliminar.git
 pip install -r requirements.txt
 streamlit run web/app.py
 ```

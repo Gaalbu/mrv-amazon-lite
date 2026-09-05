@@ -20,6 +20,7 @@ from src.diagnosis import (
     add_overlap_evidence,
     build_preliminary_diagnosis,
 )
+from src.diagnostico import generate_report, render_text_report
 from src.ingest import (
     PRODES_KIND_SHORT,
     classify_prodes_kind,
@@ -29,7 +30,6 @@ from src.ingest import (
     summarize_icmbio_overlap,
     summarize_sources,
 )
-from src.mrv import generate_report, render_text_report
 
 st.set_page_config(
     page_title="Diagnóstico Territorial Preliminar", page_icon="🧭", layout="wide"

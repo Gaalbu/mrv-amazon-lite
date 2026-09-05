@@ -60,7 +60,7 @@ quando o item estiver comprovado por log, screenshot ou arquivo.
 ### 6. Sanitização
 - [ ] Nenhuma chave/segredo em código ou commit
 - [ ] `LICENSE` MIT presente e com autor
-- [ ] `src/mrv.py` relatório tem `checksum_sha256` com nota de que identifica conteúdo,
+- [ ] `src/diagnostico.py` relatório tem `checksum_sha256` com nota de que identifica conteúdo,
       não certifica a qualidade dos dados
 
 ---

@@ -1,4 +1,4 @@
-# MRV Amazon Lite — Implementação (post-COP30 MVP)
+# Diagnóstico Territorial Preliminar — Implementação (registro)
 
 > **Estado: IMPLEMENTADO e VERIFICADO (2026-09-02).** Este PLAN documenta o que foi construído
 > e como reproduzir/validar. Divergências vs. o esboço original (Folium, Upload, PRODES, PDF,
@@ -6,10 +6,10 @@
 > registro do sistema entregue + guia de manutenção.
 
 Projeto inspirado no projeto CNPq RHAE Green Forest/UFRA/ACC.
-Transforma o MRV que seria entregue para COP30 em ferramenta de implementação pós-COP30.
+Transforma o trabalho que seria entregue para COP30 em ferramenta de implementação pós-COP30.
 
 **Stack:** Python + Streamlit + Folium/Leaflet
-**Local:** `/home/gaalbu/codigos/mrv-amazon-lite`
+**Local:** `/home/gaalbu/codigos/diagnostico-territorial-preliminar`
 
 ---
 
@@ -20,7 +20,7 @@ Estrutura:
 src/
   ingest.py
   carbon.py
-  mrv.py
+  diagnostico.py
   tfff.py
   planau.py
   config.json
@@ -48,7 +48,7 @@ LICENSE
 README.md
 ```
 
-- `pyproject.toml` com nome `mrv-amazon-lite`, versão `0.1.0` ✅
+- `pyproject.toml` com nome `diagnostico-territorial-preliminar`, versão `0.1.0` ✅
 - `Makefile` targets: `install`, `test`, `run` (= `streamlit run web/app.py`), `build`, `screenshots` ✅
 - `requirements.txt` com versões `==` pinadas ✅
 - `LICENSE` MIT com autor (2026 Gabriel Alencar) ✅
@@ -149,7 +149,7 @@ Prioridade: `alta <15%`, `média 15–30%`, `baixa >30%`.
 ### `web/app.py`
 
 Layout implementado:
-- Título `🌳 MRV Amazon Lite — Pós-COP30`, `layout="wide"`
+- Título `🧭 Diagnóstico Territorial Preliminar`, `layout="wide"`
 - **Sidebar:** `Área de análise` (combobox) + `Área (ha)` + `Tipo de biomassa`
 - **4 opções de área:** Juruti/Mamuru, Área urbana (PlaNAU), Área degradada (TFFF) e
   **Upload customizado** (carrega GeoJSON próprio via `file_uploader`)
@@ -160,7 +160,7 @@ Layout implementado:
 - **Cards de métricas:** VCU líquido (30 anos) + Faixa IPCC; TFFF estimado/ano + Elegível/Não
 - **PlaNAU:** prioridade/déficit/custo, ou `st.info` "PlaNAU não se aplica"
 - **Disclaimer** (`st.caption`): "TFFF/PlaNAU: simulação ilustrativa pós-COP30 Belém"
-- **Relatório:** botão "Gerar relatório MRV" → download JSON + download versão texto.
+- **Relatório:** botão "Gerar relatório" → download JSON + download versão texto.
   O "Baixar PDF" do esboço foi substituído por export texto (leve, sem dependência pesada de PDF).
 
 > **Decisões vs. esboço original:**
@@ -171,9 +171,9 @@ Layout implementado:
 
 ---
 
-## Etapa 7 — Relatório MRV — ✅ CONCLUÍDA
+## Etapa 7 — Relatório — ✅ CONCLUÍDA
 
-### `src/mrv.py`
+### `src/diagnostico.py`
 `generate_report(area_info, deforestation, carbon, tfff, planau)` → dict com:
 - `version`, `generated_at` (UTC ISO), `methodology`
 - `area`, `deforestation` (`series` + `source`), `carbon_estimate` (via `asdict`)
@@ -203,7 +203,7 @@ ruff format src tests web scripts  # already formatted
 
 ## Etapa 9 — README.md — ✅ CONCLUÍDA
 
-Documenta: inspirado por (CNPq), O que faz (ARR/PRODES-DETER/TFFF/PlaNAU/MRV), Como rodar em
+Documenta: inspirado por (CNPq), O que faz (contexto territorial/PRODES/ICMBio), Como rodar em
 3 comandos, Fontes, Limitações (com disclaimer exato), testes/lint.
 
 ---
@@ -211,7 +211,7 @@ Documenta: inspirado por (CNPq), O que faz (ARR/PRODES-DETER/TFFF/PlaNAU/MRV), C
 ## Etapa 10 — Commit + GitHub — ✅ CÓDIGO FEITO / RELEASE PENDENTE
 
 `git log`: branch `main` sincronizada com `origin/main`.
-**Concluído:** release `v0.1.0` publicada em https://github.com/Gaalbu/mrv-amazon-lite/releases/tag/v0.1.0.
+**Concluído:** release `v0.1.0` publicada em https://github.com/Gaalbu/diagnostico-territorial-preliminar/releases/tag/v0.1.0.
 
 ---
 

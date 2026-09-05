@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Transformar o MVP MRV Amazon Lite em uma ferramenta aberta de pré-diagnóstico
+Transformar o MVP em uma ferramenta aberta de pré-diagnóstico
 ambiental e territorial. O usuário informa ou envia um polígono e recebe um
 resumo rastreável de localização, área, evidências geoespaciais públicas,
 alertas ambientais e próximos documentos/estudos recomendados.
@@ -14,9 +14,8 @@ ou elegibilidade oficial para financiamento.
 ## Nome e posicionamento
 
 - Nome do produto: **Diagnóstico Territorial Preliminar**.
-- Repositório/package: migrar gradualmente de `mrv-amazon-lite` para um nome
-  técnico estável, preservando redirecionamento e histórico do GitHub quando
-  possível.
+- Repositório/package: `diagnostico-territorial-preliminar` (migração do nome
+  antigo concluída, com redirecionamento do GitHub preservado).
 - Descrição curta: "Pré-diagnóstico ambiental baseado em dados geoespaciais
   públicos para orientar a próxima decisão técnica."
 - Evitar alegar que a Green Forest não possui solução semelhante. Explicar que
@@ -61,7 +60,7 @@ Saída: relatório JSON e texto contendo:
   UFRA ou ACC.
 - Atualizar screenshots, checklist e documentação de release.
 
-**Aceitação:** nenhuma tela ou documento apresenta o antigo MRV Lite como
+**Aceitação:** nenhuma tela ou documento apresenta o nome antigo como
 produto final; o disclaimer e a relação de inspiração estão claros.
 
 **Checkpoint 1:** pytest, ruff, execução do dashboard e revisão textual.

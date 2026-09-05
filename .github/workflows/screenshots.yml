@@ -14,5 +14,5 @@ jobs:
       - run: python scripts/screenshots.py --out screenshots
       - uses: actions/upload-artifact@v4
         with:
-          name: mrv-screenshots
+          name: diagnostico-territorial-screenshots
           path: screenshots/*.png

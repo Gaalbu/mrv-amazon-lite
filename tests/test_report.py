@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from src.diagnosis import DiagnosisResult, Evidence
-from src.mrv import generate_report, render_text_report
+from src.diagnostico import generate_report, render_text_report
 
 
 def _sample_diagnosis() -> DiagnosisResult:
