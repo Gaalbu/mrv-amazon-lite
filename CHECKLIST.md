@@ -1,24 +1,21 @@
-# Checklist de Revisão — MRV Amazon Lite
+# Checklist de Revisão — Diagnóstico Territorial Preliminar
 
-Use este checklist para validar antes do `gh release v0.1.0` e do post no LinkedIn.
+Use este checklist para validar antes do `gh release v0.1.0` e de uma publicação externa.
 Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 
-> **Atualização 2026-09-02:** gaps de código resolvidos (Folium, Upload customizado, PRODES real
-> com fallback, export JSON+texto; `cop30_legacy`, `inspired_by`, teste `fetch_prodes`) e **prova
-> visual automatizada** criada e executada (screenshots gerados e salvos no PC). Restam apenas os
-> item editorial do post LinkedIn).
+> **Atualização 2026-09-05:** a Fase 1 reposiciona o produto como pré-diagnóstico territorial.
+> O texto do dashboard, README, checklist, screenshots e metadados agora usam o novo nome.
 
 ---
 
 ## BLOQUEADORES (não publicar sem todos verdes)
 
 ### 1. README completo — `README.md`
-- [x] Seção "Inspirado por: Projeto CNPq RHAE 443538/2024-7 Green Forest/UFRA/ACC"
-- [x] Seção "O que faz" (5 bullets: ARR, PRODES/DETER, TFFF, PlaNAU, relatório MRV)
+- [x] Seção "Inspiração" com atribuição ao projeto CNPq RHAE 443538/2024-7
+- [x] Seção "O que faz" com foco em pré-diagnóstico territorial e evidências públicas
 - [x] "Como rodar em 3 comandos": `git clone`, `pip install -r requirements.txt`, `streamlit run web/app.py`
-- [x] Seção "Fontes": INPE PRODES/DETER, IPCC 2019, VCS VM0047, TFFF/PlaNAU COP30
-- [x] Seção "Limitações" com disclaimer exato:
-  `Estimativa educacional — não substitui certificação VCS/Gold Standard. TFFF/PlaNAU aqui são simulações ilustrativas, não elegibilidade oficial.`
+- [x] Seção "Fontes": INPE PRODES/DETER, IPCC 2019, TFFF/PlaNAU COP30 e dados territoriais públicos
+- [x] Seção "Limitações" com disclaimer de pré-diagnóstico educacional
 
 ### 2. Dependências pinadas e buildável — `requirements.txt` + `Dockerfile`
 - [x] `requirements.txt` com versões `==` (streamlit, geopandas, rasterio, plotly, etc.)
@@ -28,8 +25,8 @@ Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 ### 3. Dashboard demonstrável — `web/app.py`
 - [x] Tem gráfico de série PRODES (st.line_chart) — integrado ao API real com fallback demo
 - [x] Mapa renderizado (Folium + st_folium/Leaflet)
-- [x] Cards TFFF + PlaNAU visíveis
-- [x] Disclaimer abaixo dos métrios: `TFFF/PlaNAU: simulação ilustrativa pós-COP30 Belém`
+- [x] Indicadores complementares TFFF + PlaNAU visíveis
+- [x] Disclaimer abaixo dos métricos alinhado ao pré-diagnóstico territorial
 - [x] Visual funciona com os 3 GeoJSONs + Upload customizado, sem travar por API externa
       (série PRODES com fallback demo; verificado via `scripts/screenshots.py`)
 
@@ -55,9 +52,9 @@ Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 - [x] Log de `ruff format src tests web scripts` — sem alterações pendentes
 
 ### 7. Prova visual — DEMO (automatizada, salva no PC)
-- [x] Screenshot com **Juruti — UMF V Mamuru-Arapiuns** (VCU ~12,7k + TFFF elegível + PlaNAU "não se aplica") — `screenshots/01_juruti_mamuru.png`
-- [x] Screenshot com **Área urbana demo** (PlaNAU prioridade alta + déficit árvores) — `screenshots/02_area_urbana_planau.png`
-- [x] Screenshot com **Área degradada demo** (TFFF não elegível) — `screenshots/03_area_degradada_tfff.png`
+- [x] Screenshot com **Juruti — UMF V Mamuru-Arapiuns** (indicador de carbono complementar + TFFF elegível + PlaNAU "não se aplica") — `screenshots/01_juruti_mamuru.png`
+- [x] Screenshot com **Área urbana pré-diagnóstico** (PlaNAU prioridade alta + déficit árvores) — `screenshots/02_area_urbana_planau.png`
+- [x] Screenshot com **Área degradada pré-diagnóstico** (TFFF não elegível) — `screenshots/03_area_degradada_tfff.png`
 - [x] Geração automatizada por `scripts/screenshots.py` (Playwright) — roda local (`make screenshots`) e no CI (`screenshots.yml` → artefato)
 - [ ] Opcional: GIF <15s dos 3 use cases para o LinkedIn
 
@@ -76,7 +73,7 @@ Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
 - [x] 3 screenshots dos use cases gerados e salvos em `screenshots/`
 - [x] **Autorizado:** `gh repo create Gaalbu/mrv-amazon-lite --public --source=. --push`
 - [x] **Autorizado/executado:** `gh release create v0.1.0` com notes pós-COP30 — https://github.com/Gaalbu/mrv-amazon-lite/releases/tag/v0.1.0
-- [ ] Post LinkedIn final revisado (sem "COP30 vem aí"; usar "COP30 Belém 10-21/11/2025 entregou...")
+- [ ] Post externo final revisado com a nova identidade territorial
 
 ## Evidências — execução em 2026-09-02
 

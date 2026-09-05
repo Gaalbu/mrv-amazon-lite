@@ -1,4 +1,4 @@
-"""Streamlit dashboard for the MRV Amazon Lite educational MVP."""
+"""Streamlit dashboard for the Diagnóstico Territorial Preliminar."""
 
 import json
 from datetime import UTC, datetime
@@ -15,15 +15,19 @@ from src.mrv import generate_report
 from src.planau import check_planau_eligibility
 from src.tfff import check_tfff_eligibility
 
-st.set_page_config(page_title="MRV Amazon Lite", page_icon="🌳", layout="wide")
-st.title("🌳 MRV Amazon Lite — Pós-COP30")
-st.caption("MVP educacional: resultados indicativos, não certificação de carbono.")
+st.set_page_config(
+    page_title="Diagnóstico Territorial Preliminar", page_icon="🧭", layout="wide"
+)
+st.title("🧭 Diagnóstico Territorial Preliminar")
+st.caption(
+    "Pré-diagnóstico territorial educacional, inspirado no projeto CNPq RHAE 443538/2024-7."
+)
 
 SAMPLES_DIR = Path(__file__).parents[1] / "data" / "samples"
 options = {
     "Juruti — UMF V Mamuru-Arapiuns": str(SAMPLES_DIR / "juruti_mamuru.geojson"),
-    "Área urbana (demo PlaNAU)": str(SAMPLES_DIR / "example_urban.geojson"),
-    "Área degradada (demo TFFF)": str(SAMPLES_DIR / "example_degraded.geojson"),
+    "Área urbana (pré-diagnóstico)": str(SAMPLES_DIR / "example_urban.geojson"),
+    "Área degradada (pré-diagnóstico)": str(SAMPLES_DIR / "example_degraded.geojson"),
     "Upload customizado": None,
 }
 
@@ -74,11 +78,13 @@ if "fallback" in prodes_source or "sem dados" in prodes_source:
     st.warning(prodes_source)
 
 left, right = st.columns(2)
-left.metric("VCU líquido estimado (30 anos)", f"{carbon.net_vcu:,.0f} tCO₂e")
-left.write(f"Faixa IPCC: {low.net_vcu:,.0f} – {high.net_vcu:,.0f} tCO₂e")
+left.metric("Indicador de carbono complementar", f"{carbon.net_vcu:,.0f} tCO₂e")
+left.write(f"Faixa IPCC de referência: {low.net_vcu:,.0f} – {high.net_vcu:,.0f} tCO₂e")
 right.metric("TFFF estimado / ano", f"US$ {tfff.estimated_payment_usd_year:,.2f}")
 right.write("Elegível" if tfff.eligible else "Não elegível")
-st.caption("TFFF/PlaNAU: simulação ilustrativa pós-COP30 Belém")
+st.caption(
+    "TFFF/PlaNAU: simulação ilustrativa para leitura territorial, não decisão oficial"
+)
 
 st.subheader(f"Série PRODES — {prodes_source}")
 if prodes_series.sum() > 0:
@@ -104,7 +110,7 @@ else:
 
 def text_report(report: dict) -> str:
     lines = [
-        "MRV Amazon Lite — Relatório educacional",
+        "Diagnóstico Territorial Preliminar — Relatório educacional",
         f"Gerado em: {report['generated_at']}",
         f"Metodologia: {report['methodology']}",
         f"Área: {report['area'].get('name', '')} — {report['area'].get('area_ha')} ha",
@@ -115,7 +121,7 @@ def text_report(report: dict) -> str:
         lines.append(f"  {year}: {value:,.2f}")
     lines.append("")
     ce = report["carbon_estimate"]
-    lines.append(f"VCU líquido (30 anos): {ce['net_vcu']:,.0f} tCO₂e")
+    lines.append(f"Indicador de carbono complementar: {ce['net_vcu']:,.0f} tCO₂e")
     lines.append(
         f"  Faixa IPCC: {ce['uncertainty_range'][0]:,.0f} – {ce['uncertainty_range'][1]:,.0f}"
     )

@@ -1,18 +1,18 @@
-# MRV Amazon Lite
+# Diagnóstico Territorial Preliminar
 
-MVP educacional pós-COP30 para estimar ARR, consultar ingestão PRODES/DETER e avaliar regras simplificadas de TFFF/PlaNAU.
+Protótipo aberto de pré-diagnóstico territorial e ambiental, inspirado no projeto CNPq RHAE 443538/2024-7.
 
-## Inspirado por
+## Inspiração
 
-Projeto CNPq RHAE 443538/2024-7 Green Forest/UFRA/ACC.
+Projeto CNPq RHAE 443538/2024-7. Este repositório não declara autoria da Green Forest, da UFRA ou da ACC.
 
 ## O que faz
 
-- Simula restauração ARR e VCUs em três tipos de biomassa amazônica.
+- Recebe um GeoJSON e organiza um pré-diagnóstico territorial rastreável.
 - Consulta séries históricas PRODES e alertas DETER por bounding box.
-- Avalia critérios simplificados de conservação TFFF.
-- Avalia cobertura arbórea e déficit de árvores para PlaNAU urbano.
-- Gera relatório MRV JSON com checksum SHA-256.
+- Resume evidências públicas e limitações do dado disponível.
+- Mantém indicadores complementares de uso educacional para TFFF e PlaNAU.
+- Gera relatório JSON e texto com checksum SHA-256.
 
 ## Como rodar
 
@@ -24,14 +24,14 @@ streamlit run web/app.py
 
 ## Fontes
 
-INPE PRODES/DETER, IPCC 2019, VCS VM0047 e referências TFFF/PlaNAU COP30.
+INPE PRODES/DETER, IPCC 2019, referências TFFF/PlaNAU COP30 e dados públicos territoriais usados no protótipo.
 
 O endpoint demonstrativo atual usa a camada `prodes_para_q`, portanto a cobertura PRODES
 integrada está limitada ao Pará; áreas sem retorno exibem fallback demo identificado na tela.
 
 ## Limitações
 
-Estimativa educacional — não substitui certificação VCS/Gold Standard. TFFF/PlaNAU aqui são simulações ilustrativas, não elegibilidade oficial.
+Pré-diagnóstico educacional — não substitui certificação, parecer jurídico, licenciamento, CAR ou regularização fundiária. TFFF/PlaNAU aqui são simulações ilustrativas, não elegibilidade oficial.
 
 Testes: `python -m pytest tests/ -v` · lint: `ruff check src tests web scripts`.
 
