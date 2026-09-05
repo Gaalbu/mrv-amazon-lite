@@ -11,6 +11,10 @@ from shapely import get_num_coordinates
 WFS_URL = "https://terrabrasilis.dpi.inpe.br/wfs/terrabrasilis"
 ICMBIO_WFS_URL = "https://geoservicos.inde.gov.br/geoserver/ICMBio/ows"
 ICMBIO_UCS_LAYER = "ICMBio:limiteucsfederais_a"
+ICMBIO_PRIORITY_LAYER = "ICMBio:amazonia_2a_atualizacao"
+ICMBIO_PRIORITY_TITLE = (
+    "Áreas Prioritárias para a Conservação da Biodiversidade - Amazônia"
+)
 DEMO_YEARS = range(2016, 2025)
 TARGET_CRS = "EPSG:4326"
 AREA_CRS = "EPSG:6933"  # Equal-area CRS used only for area calculation.
@@ -122,7 +126,7 @@ def fetch_prodes(
     return frame
 
 
-def _empty_icmbio_ucs() -> gpd.GeoDataFrame:
+def _empty_icmbio_layer() -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(
         {
             "name": pd.Series(dtype="string"),
@@ -133,14 +137,13 @@ def _empty_icmbio_ucs() -> gpd.GeoDataFrame:
     )
 
 
-def fetch_icmbio_ucs(bbox: list[float]) -> gpd.GeoDataFrame:
-    """Fetch federal conservation units from the official ICMBio WFS."""
+def _fetch_icmbio_layer(layer: str, bbox: list[float]) -> gpd.GeoDataFrame:
     west, south, east, north = _validate_bbox(bbox)
     params = {
         "service": "WFS",
         "version": "2.0.0",
         "request": "GetFeature",
-        "typeNames": ICMBIO_UCS_LAYER,
+        "typeNames": layer,
         "outputFormat": "application/json",
         "bbox": f"{west},{south},{east},{north},{TARGET_CRS}",
     }
@@ -148,8 +151,18 @@ def fetch_icmbio_ucs(bbox: list[float]) -> gpd.GeoDataFrame:
     response.raise_for_status()
     features = response.json().get("features", [])
     if not features:
-        return _empty_icmbio_ucs()
+        return _empty_icmbio_layer()
     return gpd.GeoDataFrame.from_features(features, crs=TARGET_CRS)
+
+
+def fetch_icmbio_ucs(bbox: list[float]) -> gpd.GeoDataFrame:
+    """Fetch federal conservation units from the official ICMBio WFS."""
+    return _fetch_icmbio_layer(ICMBIO_UCS_LAYER, bbox)
+
+
+def fetch_icmbio_priority_areas(bbox: list[float]) -> gpd.GeoDataFrame:
+    """Fetch Amazon priority conservation areas from the official ICMBio WFS."""
+    return _fetch_icmbio_layer(ICMBIO_PRIORITY_LAYER, bbox)
 
 
 def summarize_icmbio_overlap(

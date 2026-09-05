@@ -6,6 +6,7 @@ from shapely.geometry import LineString, Polygon
 from src.ingest import (
     _validate_bbox,
     compute_deforestation_series,
+    fetch_icmbio_priority_areas,
     fetch_icmbio_ucs,
     fetch_mapbiomas,
     fetch_prodes,
@@ -300,3 +301,73 @@ def test_summarize_icmbio_overlap_returns_empty_summary_without_intersection():
         "names": [],
         "overlap_area_ha": 0.0,
     }
+
+
+def test_fetch_icmbio_priority_areas_uses_official_layer_and_wgs84(monkeypatch):
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"name": "Área prioritária teste"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [[-55.0, -2.0], [-54.9, -2.0], [-54.9, -1.9], [-55.0, -2.0]]
+                    ],
+                },
+            }
+        ],
+    }
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    def fake_get(url, **kwargs):
+        captured.update(url=url, kwargs=kwargs)
+        return FakeResponse()
+
+    monkeypatch.setattr("src.ingest.requests.get", fake_get)
+
+    frame = fetch_icmbio_priority_areas([-56, -3, -54, -1])
+
+    assert frame.crs.to_epsg() == 4326
+    assert list(frame["name"]) == ["Área prioritária teste"]
+    assert captured["kwargs"]["params"]["typeNames"] == "ICMBio:amazonia_2a_atualizacao"
+    assert captured["kwargs"]["params"]["outputFormat"] == "application/json"
+    assert captured["kwargs"]["params"]["bbox"].endswith(",EPSG:4326")
+    assert captured["kwargs"]["timeout"] == 30
+
+
+def test_fetch_icmbio_priority_areas_empty_response_has_predictable_schema(monkeypatch):
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"type": "FeatureCollection", "features": []}
+
+    monkeypatch.setattr(
+        "src.ingest.requests.get", lambda *args, **kwargs: FakeResponse()
+    )
+
+    frame = fetch_icmbio_priority_areas([-56, -3, -54, -1])
+
+    assert frame.empty
+    assert list(frame.columns) == ["name", "geometry"]
+    assert frame.crs.to_epsg() == 4326
+
+
+def test_fetch_icmbio_priority_areas_propagates_api_failure(monkeypatch):
+    def unavailable(*args, **kwargs):
+        raise requests.RequestException("ICMBio unavailable")
+
+    monkeypatch.setattr("src.ingest.requests.get", unavailable)
+
+    with pytest.raises(requests.RequestException):
+        fetch_icmbio_priority_areas([-56, -3, -54, -1])
