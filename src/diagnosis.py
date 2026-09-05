@@ -67,22 +67,27 @@ def build_preliminary_diagnosis(
     )
 
 
-def add_icmbio_evidence(
+def add_overlap_evidence(
     diagnosis: "DiagnosisResult",
     source: str,
     period: str,
     overlap_summary: dict[str, object] | None,
     *,
+    subject_label: str = "unidade territorial",
     available: bool = True,
 ) -> "DiagnosisResult":
-    """Append an ICMBio overlap observation without mutating the diagnosis."""
+    """Append a spatial-overlap observation without mutating the diagnosis."""
+    _require_text(subject_label, "subject_label")
     if not available:
         status = "unavailable"
-        summary = "A consulta ao serviço ICMBio esteve indisponível."
+        summary = (
+            f"A consulta da camada de {subject_label} esteve indisponível; "
+            "quantidade, nomes e área sobreposta não puderam ser consultados."
+        )
         evidence_limitations = (
             "Nenhuma sobreposição pôde ser verificada nesta consulta.",
         )
-        limitation = "A fonte ICMBio precisa ser consultada novamente."
+        limitation = "A camada consultada precisa ser verificada novamente."
         next_step = "Tentar novamente quando o serviço estiver disponível."
     else:
         summary_data = overlap_summary or {}
@@ -93,7 +98,7 @@ def add_icmbio_evidence(
             status = "ok"
             names_text = ", ".join(names) if names else "não informados"
             summary = (
-                f"{count} UC(s) federal(is) sobreposta(s), com {area_ha:.2f} ha. "
+                f"{count} {subject_label}(s) sobreposta(s), com {area_ha:.2f} ha. "
                 f"Nomes disponíveis: {names_text}."
             )
             evidence_limitations = (
@@ -106,8 +111,9 @@ def add_icmbio_evidence(
         else:
             status = "empty"
             summary = (
-                "Nenhuma UC federal sobreposta foi encontrada na camada consultada. "
-                f"Área sobreposta: {area_ha:.2f} ha."
+                f"Nenhuma {subject_label} sobreposta foi encontrada na camada "
+                f"consultada. Área sobreposta: {area_ha:.2f} ha. "
+                "Nomes disponíveis: nenhum."
             )
             evidence_limitations = (
                 "A ausência de sobreposição limita-se à camada e ao recorte consultados.",
@@ -129,6 +135,25 @@ def add_icmbio_evidence(
         evidences=diagnosis.evidences + (evidence,),
         limitations=diagnosis.limitations + (limitation,),
         next_steps=diagnosis.next_steps + (next_step,),
+    )
+
+
+def add_icmbio_evidence(
+    diagnosis: "DiagnosisResult",
+    source: str,
+    period: str,
+    overlap_summary: dict[str, object] | None,
+    *,
+    available: bool = True,
+) -> "DiagnosisResult":
+    """Append an ICMBio conservation-unit observation."""
+    return add_overlap_evidence(
+        diagnosis,
+        source,
+        period,
+        overlap_summary,
+        subject_label="UC federal",
+        available=available,
     )
 
 

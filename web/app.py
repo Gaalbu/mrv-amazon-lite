@@ -10,8 +10,13 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 from src.carbon import estimate_vcu, estimate_vcu_range
-from src.diagnosis import add_icmbio_evidence, build_preliminary_diagnosis
+from src.diagnosis import (
+    add_icmbio_evidence,
+    add_overlap_evidence,
+    build_preliminary_diagnosis,
+)
 from src.ingest import (
+    fetch_icmbio_priority_areas,
     fetch_icmbio_ucs,
     prodes_series_with_fallback,
     read_and_validate_geojson,
@@ -88,6 +93,18 @@ except (OSError, ValueError, requests.RequestException):
     icmbio_overlap = None
     icmbio_available = False
 
+priority_source = (
+    "ICMBio — Áreas Prioritárias para a Conservação da Biodiversidade - Amazônia"
+)
+try:
+    icmbio_priority_areas = fetch_icmbio_priority_areas(area_bounds)
+    priority_overlap = summarize_icmbio_overlap(icmbio_priority_areas, area)
+    priority_available = True
+except (OSError, ValueError, requests.RequestException):
+    icmbio_priority_areas = None
+    priority_overlap = None
+    priority_available = False
+
 left, right = st.columns(2)
 left.metric("Indicador de carbono complementar", f"{carbon.net_vcu:,.0f} tCO₂e")
 left.write(f"Faixa IPCC de referência: {low.net_vcu:,.0f} – {high.net_vcu:,.0f} tCO₂e")
@@ -110,6 +127,11 @@ m = folium.Map(location=map_center, zoom_start=10, tiles="OpenStreetMap")
 folium.GeoJson(area.__geo_interface__, name="Polígono").add_to(m)
 if icmbio_ucs is not None and not icmbio_ucs.empty:
     folium.GeoJson(icmbio_ucs.__geo_interface__, name="UCs federais — ICMBio").add_to(m)
+if icmbio_priority_areas is not None and not icmbio_priority_areas.empty:
+    folium.GeoJson(
+        icmbio_priority_areas.__geo_interface__,
+        name="Áreas prioritárias — ICMBio",
+    ).add_to(m)
 st_folium(m, width="100%", height=420)
 
 st.subheader("PlaNAU")
@@ -140,6 +162,14 @@ diagnosis = add_icmbio_evidence(
     "consulta atual",
     icmbio_overlap,
     available=icmbio_available,
+)
+diagnosis = add_overlap_evidence(
+    diagnosis,
+    priority_source,
+    "consulta atual",
+    priority_overlap,
+    subject_label="área prioritária",
+    available=priority_available,
 )
 st.subheader("Diagnóstico territorial")
 for evidence in diagnosis.evidences:

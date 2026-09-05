@@ -5,6 +5,7 @@ from src.diagnosis import (
     DiagnosisResult,
     Evidence,
     add_icmbio_evidence,
+    add_overlap_evidence,
     build_preliminary_diagnosis,
 )
 
@@ -182,3 +183,18 @@ def test_add_icmbio_evidence_does_not_mutate_original_result():
 
     assert original.evidences == ()
     assert len(enriched.evidences) == 1
+
+
+def test_add_overlap_evidence_supports_priority_area_label():
+    result = add_overlap_evidence(
+        _base_diagnosis(),
+        "ICMBio — Áreas Prioritárias para a Conservação da Biodiversidade - Amazônia",
+        "consulta atual",
+        {"count": 2, "names": ["Área A", "Área B"], "overlap_area_ha": 15.5},
+        subject_label="área prioritária",
+    )
+
+    evidence = result.evidences[0]
+    assert evidence.status == "ok"
+    assert "área prioritária" in evidence.summary
+    assert "Área A, Área B" in evidence.summary
