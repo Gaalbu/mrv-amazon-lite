@@ -1,7 +1,11 @@
+import hashlib
+import json
+
 import pandas as pd
 import pytest
 
 from src.carbon import estimate_vcu, estimate_vcu_range
+from src.diagnosis import DiagnosisResult, Evidence
 from src.mrv import generate_report
 from src.planau import check_planau_eligibility
 from src.tfff import check_tfff_eligibility
@@ -39,6 +43,53 @@ def test_report_has_checksum():
         {"name": "demo"}, pd.Series({2023: 1.2}), carbon, None, None
     )
     assert len(report["checksum_sha256"]) == 64
+
+
+def test_report_serializes_explicit_territorial_diagnosis():
+    carbon = estimate_vcu(1)
+    diagnosis = DiagnosisResult(
+        area_name="Área teste",
+        area_ha=1.0,
+        evidences=(Evidence("INPE PRODES", "2024", "empty", "Sem alertas."),),
+        limitations=("Pré-diagnóstico educacional.",),
+        next_steps=("Realizar vistoria técnica.",),
+    )
+
+    report = generate_report(
+        {"name": "Área teste", "area_ha": 1.0},
+        pd.Series({2023: 1.2}),
+        carbon,
+        None,
+        None,
+        diagnosis,
+    )
+
+    assert report["diagnosis"] == diagnosis.to_dict()
+    assert report["diagnosis"]["evidences"][0]["status"] == "empty"
+
+
+def test_report_checksum_covers_diagnosis_block():
+    carbon = estimate_vcu(1)
+    diagnosis = DiagnosisResult(
+        area_name="Área A",
+        area_ha=1.0,
+        evidences=(Evidence("Fonte A", "2024", "ok", "Evidência A"),),
+    )
+    report = generate_report(
+        {"name": "Área A", "area_ha": 1.0},
+        pd.Series({2023: 1.2}),
+        carbon,
+        None,
+        None,
+        diagnosis,
+    )
+
+    payload = {key: value for key, value in report.items() if key != "checksum_sha256"}
+    expected = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
+    assert report["checksum_sha256"] == expected
 
 
 def test_invalid_inputs():
