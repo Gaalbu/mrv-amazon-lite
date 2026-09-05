@@ -5,10 +5,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import folium
+import pandas as pd
 import requests
 import streamlit as st
 from streamlit_folium import st_folium
 
+from src.deforestation import (
+    interpret_deforestation_series,
+    prodes_series_with_fallback,
+    summarize_deforestation_series,
+)
 from src.diagnosis import (
     add_icmbio_evidence,
     add_overlap_evidence,
@@ -19,7 +25,6 @@ from src.ingest import (
     classify_prodes_kind,
     fetch_icmbio_priority_areas,
     fetch_icmbio_ucs,
-    prodes_series_with_fallback,
     read_and_validate_geojson,
     summarize_icmbio_overlap,
     summarize_sources,
@@ -156,26 +161,49 @@ uc_status = "disponível" if icmbio_available else "indisponível na consulta"
 priority_status = "disponível" if priority_available else "indisponível na consulta"
 st.write(f"UCs federais: **{uc_status}** · Áreas prioritárias: **{priority_status}**")
 
-st.subheader("Histórico de desmatamento consultado")
+st.subheader("Desmatamento por ano")
+st.caption("Área estimada de desmatamento em cada ano, em hectares.")
+deforestation_summary = summarize_deforestation_series(prodes_series)
+deforestation_text = interpret_deforestation_series(
+    prodes_series, is_demo=(prodes_kind == "demo")
+)
 if prodes_kind == "demo":
-    st.info(
-        "Esta é uma série demonstrativa local porque a consulta ao PRODES não "
-        "está disponível para este recorte."
-    )
-    st.line_chart(prodes_series)
-    st.caption(f"Fonte: {prodes_source}")
+    st.info("Série demonstrativa — ilustra o funcionamento; não é medição real.")
 elif prodes_kind == "live":
-    st.line_chart(prodes_series)
-    st.caption(f"Fonte: {prodes_source}")
-elif prodes_kind == "down":
-    st.warning(
-        "Serviço indisponível — não há série disponível para este território no "
-        "momento. Isso não significa ausência de desmatamento."
+    st.caption("Fonte: INPE PRODES.")
+if deforestation_summary is not None:
+    t1, t2, t3 = st.columns(3)
+    t1.metric("Total no período", f"{deforestation_summary['total_ha']:,.0f} ha")
+    t2.metric(
+        "Maior registro",
+        f"{deforestation_summary['peak_ha']:,.0f} ha "
+        f"em {deforestation_summary['peak_year']}",
+    )
+    t3.metric(
+        "Último ano",
+        f"{deforestation_summary['last_ha']:,.0f} ha "
+        f"em {deforestation_summary['last_year']}",
+    )
+    chart_data = pd.DataFrame(
+        {
+            "Ano": prodes_series.sort_index().index.astype(int),
+            "Desmatamento estimado (ha)": prodes_series.sort_index().to_numpy(),
+        }
+    )
+    st.bar_chart(chart_data, x="Ano", y="Desmatamento estimado (ha)")
+    st.caption(f"Status: {PRODES_KIND_SHORT[prodes_kind]} · Fonte: {prodes_source}")
+    if deforestation_text:
+        st.write(deforestation_text)
+    st.caption("Fonte e limitações")
+    st.caption(
+        f"Fonte: {prodes_source} · Limitação: cobertura restrita ao Pará e "
+        "sujeita à disponibilidade da API."
     )
 else:
-    st.info(
-        "Não há série disponível para este território no momento. "
-        "Isso não significa ausência de desmatamento."
+    st.info("Não há dados disponíveis para este território no momento.")
+    st.caption(
+        "Isso não significa ausência de desmatamento; significa apenas que "
+        "nenhuma série pôde ser consultada."
     )
 
 st.subheader("Área selecionada")

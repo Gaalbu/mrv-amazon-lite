@@ -20,7 +20,6 @@ import subprocess
 import sys
 import time
 import urllib.request
-from contextlib import suppress
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -67,20 +66,31 @@ def select_area(page, filter_text: str, label: str) -> None:
     )
 
 
-def wait_for_idle(page, timeout: float = 120.0) -> None:
+def wait_for_idle(page, timeout: float = 180.0, stable_seconds: float = 3.0) -> None:
     """Wait until Streamlit finishes (re)running the script.
 
-    The status widget shows "Running" while the server-side script executes
-    (including the PRODES/ICMBio network calls). Waiting for it to hide
-    guarantees the screenshot captures settled content, not a faded
-    mid-transition page.
+    The status widget shows "Running" (and the header shows a "Stop" button)
+    while the server-side script executes, including the PRODES/ICMBio network
+    calls. The widget can detach briefly during DOM reshuffles, so return only
+    after the running indicators stay absent for `stable_seconds` in a row.
+    This guarantees settled content instead of a faded mid-transition page.
     """
     running = page.locator('[data-testid="stStatusWidget"]').get_by_text("Running")
-    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-
-    with suppress(PlaywrightTimeoutError):
-        running.wait_for(state="visible", timeout=5000)
-    running.wait_for(state="hidden", timeout=int(timeout * 1000))
+    stop_button = page.get_by_role("button", name="Stop")
+    deadline = time.time() + timeout
+    stable_since: float | None = None
+    while time.time() < deadline:
+        busy = (running.count() > 0 and running.first.is_visible()) or (
+            stop_button.count() > 0 and stop_button.first.is_visible()
+        )
+        if busy:
+            stable_since = None
+        elif stable_since is None:
+            stable_since = time.time()
+        elif time.time() - stable_since >= stable_seconds:
+            return
+        time.sleep(0.5)
+    raise TimeoutError("dashboard não ficou idle a tempo")
 
 
 def wait_for_marker(page, marker: str, timeout: float = 120.0) -> None:

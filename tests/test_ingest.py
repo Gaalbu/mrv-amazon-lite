@@ -5,13 +5,10 @@ from shapely.geometry import LineString, Polygon
 
 from src.ingest import (
     _validate_bbox,
-    compute_deforestation_series,
     fetch_icmbio_priority_areas,
     fetch_icmbio_ucs,
     fetch_mapbiomas,
     fetch_prodes,
-    load_demo_deforestation_series,
-    prodes_series_with_fallback,
     read_and_validate_geojson,
     summarize_icmbio_overlap,
     validate_geodataframe,
@@ -63,176 +60,9 @@ def test_fetch_prodes_returns_gdf(monkeypatch):
     assert list(frame["year"]) == [2021]
 
 
-def test_compute_deforestation_series():
-    prodes = gpd.GeoDataFrame(
-        {"year": [2020, 2021]},
-        geometry=[
-            Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]),
-            Polygon([(0, 0), (0.5, 0), (0.5, 0.5), (0, 0.5)]),
-        ],
-        crs="EPSG:4326",
-    )
-    target = gpd.GeoDataFrame(
-        geometry=[Polygon([(-1, -1), (2, -1), (2, 2), (-1, 2)])], crs="EPSG:4326"
-    )
-    series = compute_deforestation_series(prodes, target)
-    assert set(series.index) == {2020, 2021}
-    assert series[2020] > series[2021]
-
-
 def test_fetch_mapbiomas_fallback_has_schema():
     frame = fetch_mapbiomas(collection=9, year=2099, state="XX")
     assert list(frame.columns) == ["state", "year", "class", "area_ha"]
-
-
-def test_empty_prodes_and_non_intersection_return_empty_series():
-    target = gpd.GeoDataFrame(
-        geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])], crs="EPSG:4326"
-    )
-    empty = gpd.GeoDataFrame({"year": []}, geometry=[], crs="EPSG:4326")
-    assert compute_deforestation_series(empty, target).empty
-    outside = gpd.GeoDataFrame(
-        {"year": [2020]},
-        geometry=[Polygon([(2, 2), (3, 2), (3, 3), (2, 3)])],
-        crs="EPSG:4326",
-    )
-    assert compute_deforestation_series(outside, target).empty
-
-
-def test_prodes_network_failure_returns_visible_fallback():
-    target = gpd.GeoDataFrame(
-        geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])], crs="EPSG:4326"
-    )
-
-    def failing_fetcher(*args, **kwargs):
-        raise OSError("network unavailable")
-
-    series, source = prodes_series_with_fallback(target, fetcher=failing_fetcher)
-    assert series.empty
-    assert "indisponível" in source
-    assert "demonstração local" not in source
-
-
-def test_prodes_empty_bbox_returns_defined_source_not_fake_live_data():
-    target = gpd.GeoDataFrame(
-        geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])], crs="EPSG:4326"
-    )
-
-    def empty_fetcher(*args, **kwargs):
-        return gpd.GeoDataFrame({"year": []}, geometry=[], crs="EPSG:4326")
-
-    series, source = prodes_series_with_fallback(target, fetcher=empty_fetcher)
-    assert "sem dados" in source
-    assert series.empty
-    assert "demonstração local" not in source
-
-
-def test_prodes_live_series_is_not_padded_with_fake_zeros():
-    target = gpd.GeoDataFrame(
-        geometry=[Polygon([(-1, -1), (2, -1), (2, 2), (-1, 2)])], crs="EPSG:4326"
-    )
-
-    def single_year_fetcher(*args, **kwargs):
-        return gpd.GeoDataFrame(
-            {"year": [2020]},
-            geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])],
-            crs="EPSG:4326",
-        )
-
-    series, source = prodes_series_with_fallback(target, fetcher=single_year_fetcher)
-    assert source == "INPE PRODES (ao vivo)"
-    assert set(series.index) == {2020}
-
-
-def _square_target():
-    return gpd.GeoDataFrame(
-        geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])], crs="EPSG:4326"
-    )
-
-
-def _failing_fetcher(*args, **kwargs):
-    raise OSError("network unavailable")
-
-
-def _empty_frame_fetcher(*args, **kwargs):
-    return gpd.GeoDataFrame({"year": []}, geometry=[], crs="EPSG:4326")
-
-
-@pytest.mark.parametrize(
-    "area_name",
-    ["UMF V Mamuru-Arapiuns", "Centro Belém", "Área degradada (demo)"],
-)
-def test_load_demo_series_has_nonzero_values_for_demo_areas(area_name):
-    series = load_demo_deforestation_series(area_name)
-
-    assert series is not None
-    assert len(series) == 9
-    assert (series > 0).all()
-
-
-@pytest.mark.parametrize("area_name", ["Minha área custom", "", "  ", None])
-def test_load_demo_series_returns_none_for_unknown_area(area_name):
-    assert load_demo_deforestation_series(area_name) is None
-
-
-def test_prodes_unavailable_api_uses_local_demo_series():
-    series, source = prodes_series_with_fallback(
-        _square_target(),
-        fetcher=_failing_fetcher,
-        area_name="UMF V Mamuru-Arapiuns",
-    )
-
-    assert (series > 0).all()
-    assert source == "INPE PRODES (demonstração local — API indisponível)"
-
-
-def test_prodes_empty_response_uses_local_demo_series():
-    series, source = prodes_series_with_fallback(
-        _square_target(),
-        fetcher=_empty_frame_fetcher,
-        area_name="Centro Belém",
-    )
-
-    assert (series > 0).all()
-    assert source == "INPE PRODES (demonstração local — sem dados no recorte)"
-
-
-def test_prodes_custom_area_without_demo_receives_no_other_area_data():
-    series, source = prodes_series_with_fallback(
-        _square_target(),
-        fetcher=_failing_fetcher,
-        area_name="Minha área custom",
-    )
-
-    assert series.empty
-    assert "demonstração local" not in source
-
-    series_empty, source_empty = prodes_series_with_fallback(
-        _square_target(),
-        fetcher=_empty_frame_fetcher,
-        area_name="Minha área custom",
-    )
-
-    assert series_empty.empty
-    assert "demonstração local" not in source_empty
-
-
-def test_prodes_live_data_has_priority_over_demo_series():
-    def single_year_fetcher(*args, **kwargs):
-        return gpd.GeoDataFrame(
-            {"year": [2020]},
-            geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])],
-            crs="EPSG:4326",
-        )
-
-    series, source = prodes_series_with_fallback(
-        _square_target(),
-        fetcher=single_year_fetcher,
-        area_name="UMF V Mamuru-Arapiuns",
-    )
-
-    assert source == "INPE PRODES (ao vivo)"
-    assert set(series.index) == {2020}
 
 
 def test_validate_geodataframe_normalizes_crs_and_calculates_area():
