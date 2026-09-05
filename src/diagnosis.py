@@ -20,6 +20,53 @@ def _require_text_tuple(values: tuple[str, ...], field_name: str) -> None:
         raise ValueError(f"{field_name} must contain only non-empty strings")
 
 
+def build_preliminary_diagnosis(
+    area_name: str,
+    area_ha: float,
+    deforestation: object,
+    source: str,
+    status: EvidenceStatus,
+) -> "DiagnosisResult":
+    """Build a diagnosis summary from an already-ingested deforestation series."""
+    series_index = getattr(deforestation, "index", ())
+    if getattr(deforestation, "empty", False) or len(series_index) == 0:
+        period = "período não informado"
+    else:
+        period = f"{min(series_index)}-{max(series_index)}"
+
+    messages = {
+        "ok": (
+            "A série de desmatamento contém dados para análise preliminar.",
+            "Revisar as evidências e confirmar a interpretação técnica.",
+        ),
+        "empty": (
+            "Nenhum registro de desmatamento foi retornado para a área.",
+            "Confirmar a cobertura e o período consultado antes de concluir.",
+        ),
+        "unavailable": (
+            "A fonte de desmatamento não esteve disponível para esta consulta.",
+            "Tentar novamente quando a fonte estiver disponível.",
+        ),
+    }
+    summary, next_step = messages.get(status, ("", ""))
+    evidence = Evidence(
+        source=source,
+        period=period,
+        status=status,
+        summary=summary,
+        limitations=("A evidência depende da cobertura e disponibilidade da fonte.",),
+    )
+    return DiagnosisResult(
+        area_name=area_name,
+        area_ha=area_ha,
+        evidences=(evidence,),
+        limitations=(
+            "Resultado preliminar e educacional; não substitui análise técnica ou jurídica.",
+        ),
+        next_steps=(next_step,),
+    )
+
+
 @dataclass(frozen=True)
 class Evidence:
     """A source-backed observation and its known limits."""

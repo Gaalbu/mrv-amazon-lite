@@ -9,6 +9,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 from src.carbon import estimate_vcu, estimate_vcu_range
+from src.diagnosis import build_preliminary_diagnosis
 from src.ingest import prodes_series_with_fallback, read_and_validate_geojson
 from src.mrv import generate_report
 from src.planau import check_planau_eligibility
@@ -100,6 +101,28 @@ if planau:
 else:
     st.info("PlaNAU não se aplica: a área selecionada não está marcada como urbana.")
 
+if "fallback" in prodes_source:
+    prodes_status = "unavailable"
+elif prodes_series.empty or "sem dados" in prodes_source:
+    prodes_status = "empty"
+else:
+    prodes_status = "ok"
+
+diagnosis = build_preliminary_diagnosis(
+    properties.get("name") or selection,
+    area_ha,
+    prodes_series,
+    "INPE PRODES",
+    prodes_status,
+)
+st.subheader("Diagnóstico territorial")
+st.write(diagnosis.evidences[0].summary)
+st.caption(
+    f"Fonte: {diagnosis.evidences[0].source} · Status: {diagnosis.evidences[0].status}"
+)
+st.write("Limitação: " + "; ".join(diagnosis.limitations))
+st.write("Próximo passo: " + "; ".join(diagnosis.next_steps))
+
 
 def text_report(report: dict) -> str:
     lines = [
@@ -131,6 +154,18 @@ def text_report(report: dict) -> str:
         )
     else:
         lines.append("PlaNAU: não se aplica (área não urbana)")
+    diagnosis_report = report["diagnosis"]
+    lines.append("")
+    lines.append("Diagnóstico territorial:")
+    lines.append(
+        f"  Área: {diagnosis_report['area_name']} — {diagnosis_report['area_ha']} ha"
+    )
+    for evidence in diagnosis_report["evidences"]:
+        lines.append(
+            f"  Evidência: {evidence['source']} — {evidence['status']} — {evidence['summary']}"
+        )
+    lines.append("  Limitações: " + "; ".join(diagnosis_report["limitations"]))
+    lines.append("  Próximos passos: " + "; ".join(diagnosis_report["next_steps"]))
     lines.append("")
     lines.append(f"Checksum SHA-256: {report['checksum_sha256']}")
     lines.append(report["disclaimer"])
@@ -144,6 +179,7 @@ if st.button("Gerar relatório MRV"):
         carbon,
         tfff,
         planau,
+        diagnosis,
     )
     report_json = json.dumps(report, indent=2, default=str)
     st.download_button(

@@ -1,6 +1,11 @@
+import pandas as pd
 import pytest
 
-from src.diagnosis import DiagnosisResult, Evidence
+from src.diagnosis import (
+    DiagnosisResult,
+    Evidence,
+    build_preliminary_diagnosis,
+)
 
 
 def test_evidence_accepts_ok_and_serializes_to_json_ready_dict():
@@ -77,3 +82,47 @@ def test_diagnosis_result_serializes_evidences_and_metadata():
 def test_diagnosis_result_rejects_invalid_fields(kwargs):
     with pytest.raises(ValueError):
         DiagnosisResult(**kwargs)
+
+
+@pytest.mark.parametrize(
+    ("status", "series", "summary_fragment", "next_step_fragment"),
+    [
+        ("ok", pd.Series({2023: 4.2}), "contém dados", "Revisar"),
+        ("empty", pd.Series(dtype=float), "Nenhum registro", "Confirmar"),
+        (
+            "unavailable",
+            pd.Series(dtype=float),
+            "não esteve disponível",
+            "Tentar novamente",
+        ),
+    ],
+)
+def test_build_preliminary_diagnosis_maps_ingestion_status(
+    status, series, summary_fragment, next_step_fragment
+):
+    result = build_preliminary_diagnosis(
+        "Área teste", 12.5, series, "INPE PRODES", status
+    )
+
+    assert result.area_name == "Área teste"
+    assert result.area_ha == 12.5
+    assert len(result.evidences) == 1
+    assert result.evidences[0].status == status
+    assert summary_fragment in result.evidences[0].summary
+    assert next_step_fragment in result.next_steps[0]
+    assert result.limitations
+
+
+def test_build_preliminary_diagnosis_infers_period_from_series():
+    result = build_preliminary_diagnosis(
+        "Área teste", 1, pd.Series({2021: 1.0, 2024: 2.0}), "Fonte", "ok"
+    )
+
+    assert result.evidences[0].period == "2021-2024"
+
+
+def test_build_preliminary_diagnosis_rejects_invalid_status():
+    with pytest.raises(ValueError):
+        build_preliminary_diagnosis(
+            "Área teste", 1, pd.Series(dtype=float), "Fonte", "pending"
+        )
