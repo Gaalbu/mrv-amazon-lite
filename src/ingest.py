@@ -16,6 +16,75 @@ ICMBIO_PRIORITY_TITLE = (
     "Áreas Prioritárias para a Conservação da Biodiversidade - Amazônia"
 )
 DEMO_YEARS = range(2016, 2025)
+DEMO_SERIES_CSV = Path(__file__).parents[1] / "data" / "samples" / "prodes_demo.csv"
+DEMO_SERIES_NAME = "Área desmatada (ha)"
+LIVE_PRODES_SOURCE = "INPE PRODES (ao vivo)"
+DEMO_EMPTY_PRODES_SOURCE = "INPE PRODES (demonstração local — sem dados no recorte)"
+DEMO_UNAVAILABLE_PRODES_SOURCE = "INPE PRODES (demonstração local — API indisponível)"
+EMPTY_PRODES_SOURCE = "INPE PRODES (sem dados para o recorte)"
+UNAVAILABLE_PRODES_SOURCE = (
+    "INPE PRODES (serviço indisponível — sem dados para o recorte)"
+)
+PRODES_KIND_SHORT = {
+    "live": "Ao vivo",
+    "demo": "Demo local",
+    "empty": "Sem dados",
+    "down": "Indisponível",
+}
+
+
+def classify_prodes_kind(prodes_source: str) -> str:
+    """Map a PRODES source string to live/demo/down/empty."""
+    source = prodes_source or ""
+    if "demonstra" in source.lower():
+        return "demo"
+    if "ao vivo" in source:
+        return "live"
+    if "serviço indisponível" in source or "servico indisponivel" in source:
+        return "down"
+    return "empty"
+
+
+def summarize_sources(
+    prodes_kind: str, icmbio_available: bool, priority_available: bool
+) -> dict[str, object]:
+    """Summarize source availability, counting only live data as live.
+
+    A local demo series is available for display but is never counted as
+    live data. Returns the live count, the card title/value and an honest
+    detail line naming which sources hold real data.
+    """
+    live_count = (
+        int(prodes_kind == "live")
+        + int(bool(icmbio_available))
+        + int(bool(priority_available))
+    )
+    total = 3
+    if prodes_kind == "demo":
+        detail = (
+            "PRODES: demonstração local · UCs e áreas prioritárias: dados consultados"
+        )
+    elif prodes_kind == "live":
+        detail = "PRODES, UCs e áreas prioritárias: dados consultados"
+    elif prodes_kind == "down":
+        detail = (
+            "PRODES: serviço indisponível · "
+            "UCs e áreas prioritárias: conforme disponibilidade"
+        )
+    else:
+        detail = (
+            "PRODES: sem dados para o recorte · "
+            "UCs e áreas prioritárias: conforme disponibilidade"
+        )
+    return {
+        "live_count": live_count,
+        "total": total,
+        "title": "Fontes ao vivo",
+        "value": f"{live_count} de {total}",
+        "detail": detail,
+    }
+
+
 TARGET_CRS = "EPSG:4326"
 AREA_CRS = "EPSG:6933"  # Equal-area CRS used only for area calculation.
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -214,33 +283,76 @@ def summarize_icmbio_overlap(
     }
 
 
+def _empty_deforestation_series() -> pd.Series:
+    return pd.Series(dtype=float, name=DEMO_SERIES_NAME)
+
+
+def load_demo_deforestation_series(area_name: str | None) -> pd.Series | None:
+    """Return the local demo series for a known demo area, else None.
+
+    Values come from ``data/samples/prodes_demo.csv`` and are explicitly
+    demonstrative: they must never be presented as real PRODES measurements.
+    Custom areas without a local entry receive no other area's data.
+    """
+    if not isinstance(area_name, str) or not area_name.strip():
+        return None
+    if not DEMO_SERIES_CSV.exists():
+        return None
+    try:
+        table = pd.read_csv(DEMO_SERIES_CSV, comment="#")
+    except (OSError, ValueError, pd.errors.ParserError):
+        return None
+    required = {"area_name", "year", "deforestation_ha"}
+    if not required.issubset(table.columns):
+        return None
+    rows = table[table["area_name"].astype(str).str.strip() == area_name.strip()]
+    if rows.empty:
+        return None
+    series = pd.Series(
+        [float(value) for value in rows["deforestation_ha"]],
+        index=[int(year) for year in rows["year"]],
+        name=DEMO_SERIES_NAME,
+        dtype=float,
+    ).sort_index()
+    if series.empty or (series <= 0).all():
+        return None
+    return series
+
+
 def prodes_series_with_fallback(
     target_area: gpd.GeoDataFrame,
     fetcher=fetch_prodes,
     years: range = DEMO_YEARS,
+    area_name: str | None = None,
 ) -> tuple[pd.Series, str]:
-    """Return PRODES data for an area, or a visible demo fallback on API failure."""
-    demo = pd.Series({year: 0.0 for year in years}, name="Área desmatada (ha)")
+    """Return PRODES data for an area, or a local demo series when unavailable.
+
+    Priority: live API data first. When the API returns nothing for the
+    cutout, or is unreachable, a local demonstrative series is used only for
+    known demo areas. Custom areas without a local entry receive an empty
+    series, never another area's data. Zero-filled series are never returned
+    as if they were observed measurements.
+    """
     bounds = target_area.total_bounds
     try:
         frame = fetcher([bounds[0], bounds[1], bounds[2], bounds[3]], years=years)
         if frame.empty:
-            return (
-                demo,
-                "INPE PRODES (sem dados na bbox; cobertura disponível só para PA)",
-            )
+            demo = load_demo_deforestation_series(area_name)
+            if demo is not None:
+                return demo, DEMO_EMPTY_PRODES_SOURCE
+            return _empty_deforestation_series(), EMPTY_PRODES_SOURCE
         series = compute_deforestation_series(frame, target_area)
         if series.empty:
-            return (
-                demo,
-                "INPE PRODES (sem dados na bbox; cobertura disponível só para PA)",
-            )
-        return series, "INPE PRODES (ao vivo)"
+            demo = load_demo_deforestation_series(area_name)
+            if demo is not None:
+                return demo, DEMO_EMPTY_PRODES_SOURCE
+            return _empty_deforestation_series(), EMPTY_PRODES_SOURCE
+        return series, LIVE_PRODES_SOURCE
     except (OSError, ValueError, requests.RequestException):
-        return (
-            demo,
-            "INPE PRODES (fallback demo — API indisponível ou cobertura só para PA)",
-        )
+        demo = load_demo_deforestation_series(area_name)
+        if demo is not None:
+            return demo, DEMO_UNAVAILABLE_PRODES_SOURCE
+        return _empty_deforestation_series(), UNAVAILABLE_PRODES_SOURCE
 
 
 def fetch_deter(bbox: list[float], months: int = 12) -> gpd.GeoDataFrame:

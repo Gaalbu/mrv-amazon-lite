@@ -73,8 +73,19 @@ publicados como artefato do GitHub Actions).
 - A camada PRODES integrada está limitada ao **Pará** (`prodes_para_q`); áreas fora dessa
   cobertura retornam "sem dados", e essa ausência é exibida como **ausência de dados**, nunca
   como desmatamento zero.
-- Se a API estiver indisponível, o painel exibe uma série de referência identificada como
-  *demo* e explica que ela representa ausência de dados.
+- O painel distingue **dados ao vivo** de **demonstração local**:
+  - `INPE PRODES (ao vivo)` — série retornada pela API para o recorte analisado.
+  - `INPE PRODES (demonstração local — sem dados no recorte)` — a API respondeu, mas sem
+    dados para o recorte; áreas de demonstração usam a série local de
+    `data/samples/prodes_demo.csv`.
+  - `INPE PRODES (demonstração local — API indisponível)` — a API não respondeu; áreas de
+    demonstração usam a série local para manter o fluxo visível.
+- Os valores de `data/samples/prodes_demo.csv` são **demonstrativos e determinísticos**;
+  eles não representam medições reais do PRODES e são sempre identificados como demonstração
+  na interface e no relatório.
+- **Uploads customizados** não possuem série local: sem dados da API, o painel mostra o
+  estado "Sem dados para o recorte" (ou "Serviço indisponível") sem gráfico inventado e sem
+  reutilizar dados de outra área.
 - As APIs externas podem mudar, ficar lentas ou indisponíveis; o painel funciona mesmo assim,
   mostrando a limitação em vez de inventar dados.
 

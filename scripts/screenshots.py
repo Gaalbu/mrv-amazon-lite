@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from contextlib import suppress
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -64,6 +65,22 @@ def select_area(page, filter_text: str, label: str) -> None:
     raise RuntimeError(
         f"Opção não encontrada para '{label}' após filtrar '{filter_text}'"
     )
+
+
+def wait_for_idle(page, timeout: float = 120.0) -> None:
+    """Wait until Streamlit finishes (re)running the script.
+
+    The status widget shows "Running" while the server-side script executes
+    (including the PRODES/ICMBio network calls). Waiting for it to hide
+    guarantees the screenshot captures settled content, not a faded
+    mid-transition page.
+    """
+    running = page.locator('[data-testid="stStatusWidget"]').get_by_text("Running")
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+    with suppress(PlaywrightTimeoutError):
+        running.wait_for(state="visible", timeout=5000)
+    running.wait_for(state="hidden", timeout=int(timeout * 1000))
 
 
 def wait_for_marker(page, marker: str, timeout: float = 120.0) -> None:
@@ -126,10 +143,11 @@ def main() -> int:
             browser = p.chromium.launch()
             page = browser.new_page(viewport={"width": 1440, "height": 900})
             page.goto(url, wait_until="networkidle")
-            page.wait_for_timeout(3000)
+            wait_for_idle(page)
 
             for case in USE_CASES:
                 select_area(page, case["filter"], case["label"])
+                wait_for_idle(page)
                 wait_for_marker(page, case["expect"])
                 target = out_dir / case["file"]
                 page.screenshot(path=str(target), full_page=True)

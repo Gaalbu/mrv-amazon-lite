@@ -100,7 +100,8 @@ def test_report_includes_sources_and_preliminary_notice():
     assert len(report["sources"]) == 3
     assert report["preliminary_notice"]
     assert report["area"] == {"name": "Área teste", "area_ha": 1.0}
-    assert report["deforestation"]["source"] == "INPE PRODES"
+    assert report["deforestation"]["source"] == "INPE PRODES (ao vivo)"
+    assert report["deforestation"]["kind"] == "ao vivo"
 
 
 def test_report_without_diagnosis_builds_default():
@@ -138,6 +139,12 @@ def test_report_checksum_covers_full_payload():
     assert report["checksum_sha256"] == expected
 
 
+DEMO_WARNING = (
+    "A série apresentada é demonstrativa e foi usada apenas para visualização "
+    "do fluxo; não representa uma medição real do PRODES para esta área."
+)
+
+
 def test_generate_report_rejects_unknown_sources_shape():
     with pytest.raises(ValueError):
         generate_report(
@@ -145,3 +152,48 @@ def test_generate_report_rejects_unknown_sources_shape():
             pd.Series({2023: 1.0}),
             sources=[("A",)],  # type: ignore[arg-type]
         )
+
+
+@pytest.mark.parametrize(
+    ("source", "kind"),
+    [
+        ("INPE PRODES (ao vivo)", "ao vivo"),
+        ("INPE PRODES (demonstração local — API indisponível)", "demonstrativa"),
+        ("INPE PRODES (demonstração local — sem dados no recorte)", "demonstrativa"),
+        ("INPE PRODES (sem dados para o recorte)", "vazia"),
+        ("INPE PRODES (serviço indisponível — sem dados para o recorte)", "vazia"),
+    ],
+)
+def test_report_identifies_live_demo_and_empty_series(source, kind):
+    series = pd.Series(dtype=float) if kind == "vazia" else pd.Series({2023: 1.2})
+    report = generate_report(
+        {"name": "X", "area_ha": 1},
+        series,
+        _sample_diagnosis(),
+        deforestation_source=source,
+    )
+
+    assert report["deforestation"]["source"] == source
+    assert report["deforestation"]["kind"] == kind
+
+
+def test_text_report_warns_on_demo_series():
+    report = generate_report(
+        {"name": "X", "area_ha": 1},
+        pd.Series({2023: 120.0}),
+        _sample_diagnosis(),
+        deforestation_source="INPE PRODES (demonstração local — API indisponível)",
+    )
+
+    assert DEMO_WARNING in render_text_report(report)
+
+
+def test_text_report_has_no_demo_warning_for_live_series():
+    report = generate_report(
+        {"name": "X", "area_ha": 1},
+        pd.Series({2023: 1.2}),
+        _sample_diagnosis(),
+        deforestation_source="INPE PRODES (ao vivo)",
+    )
+
+    assert DEMO_WARNING not in render_text_report(report)

@@ -13,6 +13,13 @@ PRELIMINARY_NOTICE = (
     "decisão oficial."
 )
 
+DEMO_SERIES_WARNING = (
+    "A série apresentada é demonstrativa e foi usada apenas para visualização "
+    "do fluxo; não representa uma medição real do PRODES para esta área."
+)
+
+LIVE_PRODES_SOURCE = "INPE PRODES (ao vivo)"
+
 
 def _default_diagnosis(area_info: dict, deforestation: Any) -> DiagnosisResult:
     area_name = area_info.get("name") or "Área analisada"
@@ -46,12 +53,29 @@ def _default_diagnosis(area_info: dict, deforestation: Any) -> DiagnosisResult:
     )
 
 
+def _deforestation_kind(source: str, deforestation: Any) -> str:
+    """Classify the deforestation series as live, demo or empty.
+
+    Returns "ao vivo" for live API data, "demonstrativa" for the local demo
+    series, and "vazia" when no series is available.
+    """
+    lowered = source.lower()
+    if "demonstra" in lowered:
+        return "demonstrativa"
+    if "ao vivo" in lowered:
+        return "ao vivo"
+    if getattr(deforestation, "empty", True):
+        return "vazia"
+    return "ao vivo"
+
+
 def generate_report(
     area_info: dict,
     deforestation: Any,
     diagnosis: DiagnosisResult | None = None,
     *,
     sources: list[tuple[str, str]] | None = None,
+    deforestation_source: str | None = None,
 ) -> dict:
     """Build the simplified preliminary diagnostic report.
 
@@ -60,6 +84,7 @@ def generate_report(
     """
     territorial_diagnosis = diagnosis or _default_diagnosis(area_info, deforestation)
     consulted_sources = sources or [("INPE PRODES", "período da série consultada")]
+    series_source = deforestation_source or LIVE_PRODES_SOURCE
     report = {
         "version": "2.0",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -71,7 +96,8 @@ def generate_report(
             "series": deforestation.to_dict()
             if hasattr(deforestation, "to_dict")
             else deforestation,
-            "source": "INPE PRODES",
+            "source": series_source,
+            "kind": _deforestation_kind(series_source, deforestation),
         },
         "diagnosis": territorial_diagnosis.to_dict(),
         "sources": [
@@ -102,6 +128,8 @@ def render_text_report(report: dict) -> str:
     for year, value in report["deforestation"]["series"].items():
         lines.append(f"  {year}: {value:,.2f}")
     lines.append(f"Fonte da série: {report['deforestation']['source']}")
+    if report["deforestation"].get("kind") == "demonstrativa":
+        lines.append(f"AVISO: {DEMO_SERIES_WARNING}")
     lines.append("")
     for evidence in report["diagnosis"]["evidences"]:
         lines.append(f"Evidência — {evidence['source']}")

@@ -26,13 +26,18 @@ quando o item estiver comprovado por log, screenshot ou arquivo.
 ### 3. Dashboard demonstrável — `web/app.py`
 - [ ] Título e explicação do caráter preliminar
 - [ ] Entrada do território: áreas de demonstração + upload GeoJSON + validação + área em ha
-- [ ] Resumo inicial qualitativo (status das fontes, sem números conclusivos)
-- [ ] Série "Histórico de desmatamento consultado" com aviso explícito quando há fallback
+- [ ] Resumo inicial com estados compreensíveis (Dados ao vivo / Demonstração local /
+      Sem dados para o recorte / Serviço indisponível); "Fontes ao vivo" diferencia
+      fonte consultada de fonte com dados reais (demonstração local nunca conta como ao vivo)
+- [ ] Série "Histórico de desmatamento consultado" com gráfico preenchido nas 3 áreas de
+      demonstração + aviso explícito de demonstração local quando aplicável
+- [ ] Sem gráfico inventado para uploads customizados sem dados (estado informativo, sem zeros)
 - [ ] Mapa central com polígono, UCs federais e áreas prioritárias (camadas com nome)
 - [ ] Seção de evidências com fonte, período, resultado e limitação
 - [ ] Seção "Limitações — O que esta análise não responde" sempre visível
 - [ ] Sem TFFF, PlaNAU, carbono ou linguagem de decisão oficial
-- [ ] Relatório JSON e texto refletem exatamente o dashboard
+- [ ] Relatório JSON e texto refletem exatamente o dashboard e registram o tipo da série
+      (ao vivo / demonstrativa / vazia)
 
 ---
 
