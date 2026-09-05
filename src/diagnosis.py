@@ -1,7 +1,7 @@
 """Serializable contracts for preliminary territorial diagnosis results."""
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 EvidenceStatus = Literal["ok", "empty", "unavailable"]
@@ -64,6 +64,71 @@ def build_preliminary_diagnosis(
             "Resultado preliminar e educacional; não substitui análise técnica ou jurídica.",
         ),
         next_steps=(next_step,),
+    )
+
+
+def add_icmbio_evidence(
+    diagnosis: "DiagnosisResult",
+    source: str,
+    period: str,
+    overlap_summary: dict[str, object] | None,
+    *,
+    available: bool = True,
+) -> "DiagnosisResult":
+    """Append an ICMBio overlap observation without mutating the diagnosis."""
+    if not available:
+        status = "unavailable"
+        summary = "A consulta ao serviço ICMBio esteve indisponível."
+        evidence_limitations = (
+            "Nenhuma sobreposição pôde ser verificada nesta consulta.",
+        )
+        limitation = "A fonte ICMBio precisa ser consultada novamente."
+        next_step = "Tentar novamente quando o serviço estiver disponível."
+    else:
+        summary_data = overlap_summary or {}
+        count = int(summary_data.get("count", 0))
+        area_ha = float(summary_data.get("overlap_area_ha", 0.0))
+        names = [str(name) for name in summary_data.get("names", [])]
+        if count > 0:
+            status = "ok"
+            names_text = ", ".join(names) if names else "não informados"
+            summary = (
+                f"{count} UC(s) federal(is) sobreposta(s), com {area_ha:.2f} ha. "
+                f"Nomes disponíveis: {names_text}."
+            )
+            evidence_limitations = (
+                "A sobreposição é indicativa e deve ser confirmada em análise técnica.",
+            )
+            limitation = "O resultado considera apenas a camada ICMBio consultada."
+            next_step = (
+                "Revisar a geometria e os nomes com documentação técnica atualizada."
+            )
+        else:
+            status = "empty"
+            summary = (
+                "Nenhuma UC federal sobreposta foi encontrada na camada consultada. "
+                f"Área sobreposta: {area_ha:.2f} ha."
+            )
+            evidence_limitations = (
+                "A ausência de sobreposição limita-se à camada e ao recorte consultados.",
+            )
+            limitation = "Outras fontes ou recortes territoriais não foram avaliados."
+            next_step = (
+                "Confirmar o recorte consultado e revisar fontes complementares."
+            )
+
+    evidence = Evidence(
+        source=source,
+        period=period,
+        status=status,
+        summary=summary,
+        limitations=evidence_limitations,
+    )
+    return replace(
+        diagnosis,
+        evidences=diagnosis.evidences + (evidence,),
+        limitations=diagnosis.limitations + (limitation,),
+        next_steps=diagnosis.next_steps + (next_step,),
     )
 
 

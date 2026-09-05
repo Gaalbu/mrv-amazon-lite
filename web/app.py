@@ -5,12 +5,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import folium
+import requests
 import streamlit as st
 from streamlit_folium import st_folium
 
 from src.carbon import estimate_vcu, estimate_vcu_range
-from src.diagnosis import build_preliminary_diagnosis
-from src.ingest import prodes_series_with_fallback, read_and_validate_geojson
+from src.diagnosis import add_icmbio_evidence, build_preliminary_diagnosis
+from src.ingest import (
+    fetch_icmbio_ucs,
+    prodes_series_with_fallback,
+    read_and_validate_geojson,
+    summarize_icmbio_overlap,
+)
 from src.mrv import generate_report
 from src.planau import check_planau_eligibility
 from src.tfff import check_tfff_eligibility
@@ -71,6 +77,17 @@ prodes_series, prodes_source = prodes_series_with_fallback(area)
 if "fallback" in prodes_source or "sem dados" in prodes_source:
     st.warning(prodes_source)
 
+area_bounds = area.total_bounds.tolist()
+icmbio_source = "ICMBio WFS — limiteucsfederais_a"
+try:
+    icmbio_ucs = fetch_icmbio_ucs(area_bounds)
+    icmbio_overlap = summarize_icmbio_overlap(icmbio_ucs, area)
+    icmbio_available = True
+except (OSError, ValueError, requests.RequestException):
+    icmbio_ucs = None
+    icmbio_overlap = None
+    icmbio_available = False
+
 left, right = st.columns(2)
 left.metric("Indicador de carbono complementar", f"{carbon.net_vcu:,.0f} tCO₂e")
 left.write(f"Faixa IPCC de referência: {low.net_vcu:,.0f} – {high.net_vcu:,.0f} tCO₂e")
@@ -91,6 +108,8 @@ st.subheader("Área selecionada")
 map_center = [area.union_all().centroid.y, area.union_all().centroid.x]
 m = folium.Map(location=map_center, zoom_start=10, tiles="OpenStreetMap")
 folium.GeoJson(area.__geo_interface__, name="Polígono").add_to(m)
+if icmbio_ucs is not None and not icmbio_ucs.empty:
+    folium.GeoJson(icmbio_ucs.__geo_interface__, name="UCs federais — ICMBio").add_to(m)
 st_folium(m, width="100%", height=420)
 
 st.subheader("PlaNAU")
@@ -115,11 +134,17 @@ diagnosis = build_preliminary_diagnosis(
     "INPE PRODES",
     prodes_status,
 )
-st.subheader("Diagnóstico territorial")
-st.write(diagnosis.evidences[0].summary)
-st.caption(
-    f"Fonte: {diagnosis.evidences[0].source} · Status: {diagnosis.evidences[0].status}"
+diagnosis = add_icmbio_evidence(
+    diagnosis,
+    icmbio_source,
+    "consulta atual",
+    icmbio_overlap,
+    available=icmbio_available,
 )
+st.subheader("Diagnóstico territorial")
+for evidence in diagnosis.evidences:
+    st.write(evidence.summary)
+    st.caption(f"Fonte: {evidence.source} · Status: {evidence.status}")
 st.write("Limitação: " + "; ".join(diagnosis.limitations))
 st.write("Próximo passo: " + "; ".join(diagnosis.next_steps))
 
@@ -164,6 +189,8 @@ def text_report(report: dict) -> str:
         lines.append(
             f"  Evidência: {evidence['source']} — {evidence['status']} — {evidence['summary']}"
         )
+        for limitation in evidence["limitations"]:
+            lines.append(f"    Limitação da evidência: {limitation}")
     lines.append("  Limitações: " + "; ".join(diagnosis_report["limitations"]))
     lines.append("  Próximos passos: " + "; ".join(diagnosis_report["next_steps"]))
     lines.append("")

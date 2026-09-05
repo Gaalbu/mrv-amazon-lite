@@ -4,6 +4,7 @@ import pytest
 from src.diagnosis import (
     DiagnosisResult,
     Evidence,
+    add_icmbio_evidence,
     build_preliminary_diagnosis,
 )
 
@@ -126,3 +127,58 @@ def test_build_preliminary_diagnosis_rejects_invalid_status():
         build_preliminary_diagnosis(
             "Área teste", 1, pd.Series(dtype=float), "Fonte", "pending"
         )
+
+
+def _base_diagnosis():
+    return DiagnosisResult("Área teste", 10.0)
+
+
+@pytest.mark.parametrize(
+    ("summary", "status"),
+    [
+        ({"count": 2, "names": ["UC A", "UC B"], "overlap_area_ha": 15.5}, "ok"),
+        ({"count": 0, "names": [], "overlap_area_ha": 0.0}, "empty"),
+    ],
+)
+def test_add_icmbio_evidence_classifies_overlap(summary, status):
+    result = add_icmbio_evidence(
+        _base_diagnosis(),
+        "ICMBio WFS",
+        "consulta atual",
+        summary,
+    )
+
+    evidence = result.evidences[0]
+    assert evidence.status == status
+    assert evidence.source == "ICMBio WFS"
+    assert evidence.period == "consulta atual"
+    assert f"{summary['overlap_area_ha']:.2f} ha" in evidence.summary
+    assert result.limitations and result.next_steps
+
+
+def test_add_icmbio_evidence_marks_failed_request_unavailable():
+    result = add_icmbio_evidence(
+        _base_diagnosis(),
+        "ICMBio WFS",
+        "consulta atual",
+        None,
+        available=False,
+    )
+
+    assert result.evidences[0].status == "unavailable"
+    assert "indisponível" in result.evidences[0].summary
+    assert result.evidences[0].limitations
+
+
+def test_add_icmbio_evidence_does_not_mutate_original_result():
+    original = _base_diagnosis()
+
+    enriched = add_icmbio_evidence(
+        original,
+        "ICMBio WFS",
+        "consulta atual",
+        {"count": 1, "names": ["UC A"], "overlap_area_ha": 2.0},
+    )
+
+    assert original.evidences == ()
+    assert len(enriched.evidences) == 1
