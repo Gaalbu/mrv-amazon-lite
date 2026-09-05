@@ -5,12 +5,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import folium
-import geopandas as gpd
 import streamlit as st
 from streamlit_folium import st_folium
 
 from src.carbon import estimate_vcu, estimate_vcu_range
-from src.ingest import prodes_series_with_fallback
+from src.ingest import prodes_series_with_fallback, read_and_validate_geojson
 from src.mrv import generate_report
 from src.planau import check_planau_eligibility
 from src.tfff import check_tfff_eligibility
@@ -41,28 +40,22 @@ uploaded = st.sidebar.file_uploader(
 
 try:
     if selection == "Upload customizado" and uploaded is not None:
-        area = gpd.read_file(uploaded)
+        area, geometry_area_ha = read_and_validate_geojson(
+            uploaded, file_size=uploaded.size
+        )
+    elif selection == "Upload customizado":
+        st.info("Escolha um arquivo GeoJSON para iniciar o pré-diagnóstico.")
+        st.stop()
     else:
-        area = gpd.read_file(options[selection])
-except Exception:  # noqa: BLE001 - erro amigável p/ upload de usuário
-    st.error("GeoJSON inválido — não foi possível ler o arquivo.")
+        area, geometry_area_ha = read_and_validate_geojson(options[selection])
+except ValueError as exc:
+    st.error(str(exc))
     st.stop()
 
-if area.empty:
-    st.error("Polígono vazio — carregue um GeoJSON com ao menos um feature.")
-    st.stop()
-
-if area.crs is None:
-    st.error("GeoJSON sem CRS reconhecível — carregue um arquivo com CRS definido.")
-    st.stop()
-
-try:
-    area = area.to_crs("EPSG:4326")
-except Exception:  # noqa: BLE001 - erro amigável p/ upload de usuário
-    st.error("Não foi possível reprojetar o GeoJSON para EPSG:4326.")
-    st.stop()
 properties = area.iloc[0].to_dict()
-area_ha = st.sidebar.number_input("Área (ha)", min_value=0.0, value=100.0, step=10.0)
+area_ha = st.sidebar.number_input(
+    "Área calculada (ha)", min_value=0.0, value=round(geometry_area_ha, 2), step=10.0
+)
 biomass = st.sidebar.selectbox("Tipo de biomassa", ["terra_firme", "varzea", "igapo"])
 deforestation = float(properties.get("deforestation_pct_10yr", 0.02))
 tree_cover = float(properties.get("tree_cover_pct", 0.0))

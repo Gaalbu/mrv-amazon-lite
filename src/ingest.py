@@ -6,9 +6,82 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 import requests
+from shapely import get_num_coordinates
 
 WFS_URL = "https://terrabrasilis.dpi.inpe.br/wfs/terrabrasilis"
 DEMO_YEARS = range(2016, 2025)
+TARGET_CRS = "EPSG:4326"
+AREA_CRS = "EPSG:6933"  # Equal-area CRS used only for area calculation.
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+MAX_FEATURES = 1_000
+MAX_COORDINATES = 100_000
+
+
+def validate_upload_size(size: int | None) -> None:
+    """Reject empty or oversized uploads before GeoPandas parses them."""
+    if size is None or size <= 0:
+        raise ValueError("O arquivo está vazio; envie um GeoJSON com dados.")
+    if size > MAX_UPLOAD_BYTES:
+        limit_mb = MAX_UPLOAD_BYTES // (1024 * 1024)
+        raise ValueError(f"O arquivo é grande demais; o limite é {limit_mb} MB.")
+
+
+def validate_geodataframe(
+    frame: gpd.GeoDataFrame,
+    *,
+    max_features: int = MAX_FEATURES,
+    max_coordinates: int = MAX_COORDINATES,
+) -> tuple[gpd.GeoDataFrame, float]:
+    """Validate, normalize and measure an analysis GeoDataFrame.
+
+    Coordinates are normalized to WGS84 (EPSG:4326). Area is calculated from
+    the union in EPSG:6933, an equal-area metric projection, and returned in
+    hectares. Conservative feature and coordinate caps limit parser and
+    geometry-processing work at the upload boundary.
+    """
+    if not isinstance(frame, gpd.GeoDataFrame):
+        raise TypeError("A entrada precisa ser um GeoDataFrame.")
+    if frame.empty:
+        raise ValueError("O GeoJSON está vazio; envie ao menos uma feição.")
+    if max_features <= 0 or len(frame) > max_features:
+        raise ValueError(f"O GeoJSON excede o limite de {max_features} feições.")
+    if frame.crs is None:
+        raise ValueError("O GeoJSON não informa um CRS reconhecível.")
+    if frame.geometry.isna().any() or frame.geometry.is_empty.any():
+        raise ValueError("O GeoJSON contém geometria vazia ou ausente.")
+    if (~frame.geometry.is_valid).any():
+        raise ValueError("O GeoJSON contém geometria inválida.")
+
+    coordinate_count = sum(
+        int(get_num_coordinates(geometry)) for geometry in frame.geometry
+    )
+    if max_coordinates <= 0 or coordinate_count > max_coordinates:
+        raise ValueError(f"O GeoJSON excede o limite de {max_coordinates} coordenadas.")
+
+    try:
+        normalized = frame.to_crs(TARGET_CRS)
+    except Exception as exc:
+        raise ValueError("O CRS informado no GeoJSON é inválido.") from exc
+
+    union = normalized.geometry.union_all()
+    area_m2 = gpd.GeoSeries([union], crs=TARGET_CRS).to_crs(AREA_CRS).area.iloc[0]
+    area_ha = float(area_m2 / 10_000)
+    if area_ha <= 0:
+        raise ValueError("A geometria tem área igual a zero; envie um polígono.")
+    return normalized, area_ha
+
+
+def read_and_validate_geojson(
+    source: str | Path | object, *, file_size: int | None = None
+) -> tuple[gpd.GeoDataFrame, float]:
+    """Read a GeoJSON source and apply the upload/geometry validation contract."""
+    if file_size is not None:
+        validate_upload_size(file_size)
+    try:
+        frame = gpd.read_file(source)
+    except Exception as exc:
+        raise ValueError("GeoJSON inválido; não foi possível ler o arquivo.") from exc
+    return validate_geodataframe(frame)
 
 
 def _validate_bbox(bbox: list[float]) -> tuple[float, float, float, float]:
@@ -28,12 +101,12 @@ def _fetch_wfs(layer: str, bbox: list[float], **extra: str) -> gpd.GeoDataFrame:
         "request": "GetFeature",
         "typeNames": layer,
         "outputFormat": "application/json",
-        "bbox": f"{west},{south},{east},{north},EPSG:4326",
+        "bbox": f"{west},{south},{east},{north},{TARGET_CRS}",
         **extra,
     }
     response = requests.get(WFS_URL, params=params, timeout=30)
     response.raise_for_status()
-    return gpd.GeoDataFrame.from_features(response.json()["features"], crs="EPSG:4326")
+    return gpd.GeoDataFrame.from_features(response.json()["features"], crs=TARGET_CRS)
 
 
 def fetch_prodes(
@@ -103,6 +176,6 @@ def compute_deforestation_series(
     intersections = gpd.overlay(
         prodes_gdf, target_area[["geometry"]], how="intersection"
     )
-    area = intersections.to_crs("EPSG:6933").geometry.area / 10000
+    area = intersections.to_crs(AREA_CRS).geometry.area / 10000
     years = intersections.get("year", pd.Series(index=intersections.index, dtype=int))
     return area.groupby(years).sum().sort_index()

@@ -1,6 +1,6 @@
 import geopandas as gpd
 import pytest
-from shapely.geometry import Polygon
+from shapely.geometry import LineString, Polygon
 
 from src.ingest import (
     _validate_bbox,
@@ -8,6 +8,9 @@ from src.ingest import (
     fetch_mapbiomas,
     fetch_prodes,
     prodes_series_with_fallback,
+    read_and_validate_geojson,
+    validate_geodataframe,
+    validate_upload_size,
 )
 
 
@@ -102,3 +105,86 @@ def test_prodes_network_failure_returns_visible_fallback():
     series, source = prodes_series_with_fallback(target, fetcher=failing_fetcher)
     assert len(series) == 9
     assert "fallback demo" in source
+
+
+def test_validate_geodataframe_normalizes_crs_and_calculates_area():
+    frame = gpd.GeoDataFrame(
+        geometry=[
+            Polygon([(-55.0, -2.0), (-54.99, -2.0), (-54.99, -1.99), (-55.0, -1.99)])
+        ],
+        crs="EPSG:4326",
+    )
+
+    normalized, area_ha = validate_geodataframe(frame)
+
+    assert normalized.crs.to_epsg() == 4326
+    assert area_ha > 0
+
+
+def test_validate_geodataframe_accepts_multiple_features():
+    frame = gpd.GeoDataFrame(
+        geometry=[
+            Polygon([(-55.0, -2.0), (-54.99, -2.0), (-54.99, -1.99), (-55.0, -1.99)]),
+            Polygon([(-55.02, -2.0), (-55.01, -2.0), (-55.01, -1.99), (-55.02, -1.99)]),
+        ],
+        crs="EPSG:4326",
+    )
+
+    normalized, area_ha = validate_geodataframe(frame)
+
+    assert len(normalized) == 2
+    assert area_ha > 0
+
+
+@pytest.mark.parametrize(
+    "frame, message",
+    [
+        (gpd.GeoDataFrame(geometry=[], crs="EPSG:4326"), "vazio"),
+        (
+            gpd.GeoDataFrame(
+                geometry=[Polygon([(0, 0), (1, 1), (0, 1), (1, 0), (0, 0)])],
+                crs="EPSG:4326",
+            ),
+            "inválida",
+        ),
+        (
+            gpd.GeoDataFrame(
+                geometry=[LineString([(0, 0), (1, 0)])],
+                crs="EPSG:4326",
+            ),
+            "área",
+        ),
+    ],
+)
+def test_validate_geodataframe_rejects_empty_invalid_and_zero_area(frame, message):
+    with pytest.raises(ValueError, match=message):
+        validate_geodataframe(frame)
+
+
+def test_validate_geodataframe_rejects_missing_crs():
+    frame = gpd.GeoDataFrame(geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 0)])])
+
+    with pytest.raises(ValueError, match="CRS"):
+        validate_geodataframe(frame)
+
+
+def test_validate_geodataframe_rejects_feature_and_coordinate_limits():
+    frame = gpd.GeoDataFrame(
+        geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 0)])] * 2,
+        crs="EPSG:4326",
+    )
+
+    with pytest.raises(ValueError, match="feições"):
+        validate_geodataframe(frame, max_features=1)
+    with pytest.raises(ValueError, match="coordenadas"):
+        validate_geodataframe(frame, max_coordinates=3)
+
+
+def test_read_and_validate_geojson_rejects_empty_upload():
+    with pytest.raises(ValueError, match="vazio"):
+        read_and_validate_geojson(b"", file_size=0)
+
+
+def test_validate_upload_size_rejects_oversized_upload():
+    with pytest.raises(ValueError, match="grande"):
+        validate_upload_size(5 * 1024 * 1024 + 1)
