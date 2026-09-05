@@ -1,4 +1,4 @@
-"""Automated dashboard screenshots for MRV Amazon Lite.
+"""Automated dashboard screenshots for Diagnóstico Territorial Preliminar.
 
 Usage:
     .venv/bin/python scripts/screenshots.py [--out DIR] [--port 8501]
@@ -8,9 +8,9 @@ Streamlit server in a subprocess, waits for it, drives the sidebar through the
 three demo areas, and saves a full-page PNG for each use case.
 
 Based on the 3 use cases documented in CHECKLIST.md:
-    1. Juruti — UMF V Mamuru-Arapiuns  (VCU ~12,7k + TFFF elegível + PlaNAU N/A)
-    2. Área urbana (demo PlaNAU)        (prioridade alta + déficit de árvores)
-    3. Área degradada (demo TFFF)       (TFFF não elegível)
+    1. Juruti — UMF V Mamuru-Arapiuns  (indicador complementar + TFFF elegível + PlaNAU N/A)
+    2. Área urbana (pré-diagnóstico)    (prioridade alta + déficit de árvores)
+    3. Área degradada (pré-diagnóstico) (TFFF não elegível)
 """
 
 from __future__ import annotations
@@ -29,16 +29,16 @@ USE_CASES = [
         "label": "Juruti — UMF V Mamuru-Arapiuns",
         "filter": "Juruti",
         "file": "01_juruti_mamuru.png",
-        "expect": "VCU líquido",
+        "expect": "Indicador de carbono complementar",
     },
     {
-        "label": "Área urbana (demo PlaNAU)",
+        "label": "Área urbana (pré-diagnóstico)",
         "filter": "urbana",
         "file": "02_area_urbana_planau.png",
         "expect": "Prioridade:",
     },
     {
-        "label": "Área degradada (demo TFFF)",
+        "label": "Área degradada (pré-diagnóstico)",
         "filter": "degradada",
         "file": "03_area_degradada_tfff.png",
         "expect": "Não elegível",

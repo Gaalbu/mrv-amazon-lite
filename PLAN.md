@@ -320,3 +320,19 @@ scripts` depois de cada mudança:**
 - **Dockerfile (3.12)** vs **CI (3.11):** ambos atendem `requires-python >=3.11`.
 - **PDF:** não gerado; export em JSON e texto. Se necessário futuramente, adicionar `reportlab`
   em `requirements.txt` e um botão extra.
+
+---
+
+## Etapa 14 — Pivotagem para Diagnóstico Territorial Preliminar — 🗺️ PLANEJADA
+
+O projeto será refatorado para um pré-diagnóstico ambiental e territorial aberto,
+com foco em evidências geoespaciais públicas, qualidade dos dados, limitações
+explícitas e próximos passos técnicos. Ele será complementar às soluções
+profissionais existentes no ecossistema Green Forest/ACC, sem alegar que essas
+organizações não possuam iniciativas semelhantes.
+
+O plano executável, com contrato, fases, critérios de aceitação, checkpoints e
+protocolo de commits/pushes, está em `tasks/plan.md`. A lista operacional está
+em `tasks/todo.md`. O próximo agente deve começar pela Fase 0, criar uma branch
+`codex/`, seguir a ordem definida e não publicar uma nova release sem autorização
+explícita.
