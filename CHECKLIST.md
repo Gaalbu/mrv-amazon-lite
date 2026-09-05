@@ -1,104 +1,75 @@
-# Checklist de Revisão — Diagnóstico Territorial Preliminar
+# Checklist de Revisão — Diagnóstico Territorial Preliminar (MVP)
 
-Use este checklist para validar antes do `gh release v0.1.0` e de uma publicação externa.
-Marque `[x]` quando o item estiver comprovado por log, screenshot ou arquivo.
+Use este checklist para validar o MVP de contexto territorial ambiental. Marque `[x]`
+quando o item estiver comprovado por log, screenshot ou arquivo.
 
-> **Atualização 2026-09-05:** a Fase 1 reposiciona o produto como pré-diagnóstico territorial.
-> O texto do dashboard, README, checklist, screenshots e metadados agora usam o novo nome.
+> **Atualização 2026-09-05:** o projeto foi enxugado para um MVP de leitura preliminar
+> de contexto territorial. Carbono, TFFF e PlaNAU foram retirados do fluxo principal e
+> preservados como funcionalidades futuras documentadas.
 
 ---
 
-## BLOQUEADORES (não publicar sem todos verdes)
+## BLOQUEADORES (não entregar sem todos verdes)
 
 ### 1. README completo — `README.md`
-- [x] Seção "Inspiração" com atribuição ao projeto CNPq RHAE 443538/2024-7
-- [x] Seção "O que faz" com foco em pré-diagnóstico territorial e evidências públicas
-- [x] "Como rodar em 3 comandos": `git clone`, `pip install -r requirements.txt`, `streamlit run web/app.py`
-- [x] Seção "Fontes": INPE PRODES/DETER, IPCC 2019, TFFF/PlaNAU COP30 e dados territoriais públicos
-- [x] Seção "Limitações" com disclaimer de pré-diagnóstico educacional
+- [ ] Seção "Inspiração" com atribuição ao projeto CNPq RHAE 443538/2024-7
+- [ ] Seção "O que faz" com foco em pré-diagnóstico territorial e evidências públicas
+- [ ] Seção "O que NÃO faz" sem carbono/TFFF/PlaNAU
+- [ ] "Como rodar em 3 comandos": `git clone`, `pip install -r requirements.txt`, `streamlit run web/app.py`
+- [ ] Seção "Fontes": INPE PRODES e camadas ICMBio (UCs federais + áreas prioritárias)
+- [ ] Seção "Limitações" com disclaimer de pré-diagnóstico educacional
 
 ### 2. Dependências pinadas e buildável — `requirements.txt` + `Dockerfile`
-- [x] `requirements.txt` com versões `==` (streamlit, geopandas, rasterio, plotly, etc.)
-- [x] `Dockerfile` inclui `gdal-bin libgdal-dev` antes do `pip install`
-- [x] Comprovado: `docker build -t mrv-lite:test .` sem erro
+- [ ] `requirements.txt` com versões `==` e sem dependências não usadas
+- [ ] `Dockerfile` inclui `gdal-bin libgdal-dev` antes do `pip install`
 
 ### 3. Dashboard demonstrável — `web/app.py`
-- [x] Tem gráfico de série PRODES (st.line_chart) — integrado ao API real com fallback demo
-- [x] Mapa renderizado (Folium + st_folium/Leaflet)
-- [x] Indicadores complementares TFFF + PlaNAU visíveis
-- [x] Disclaimer abaixo dos métricos alinhado ao pré-diagnóstico territorial
-- [x] Visual funciona com os 3 GeoJSONs + Upload customizado, sem travar por API externa
-      (série PRODES com fallback demo; verificado via `scripts/screenshots.py`)
-
----
-
-## CORREÇÕES MENORES
-
-### 4. Config interna
-- [x] `src/config.json` tem `crediting_period_years: 30` e `discount_rate: 0.05`
-- [x] `src/tfff.py` lógica de elegibilidade sem redundância (usar limite único <5%)
-
-### 5. Ingest
-- [x] `data/mapbiomas_pa_2023.csv` existe (mesmo que vazio com header) OU `fetch_mapbiomas` retorna df mock quando ausente
-- [x] Teste cobre o caso `fetch_mapbiomas` sem arquivo
+- [ ] Título e explicação do caráter preliminar
+- [ ] Entrada do território: áreas de demonstração + upload GeoJSON + validação + área em ha
+- [ ] Resumo inicial com estados compreensíveis (Dados ao vivo / Demonstração local /
+      Sem dados para o recorte / Serviço indisponível); "Fontes ao vivo" diferencia
+      fonte consultada de fonte com dados reais (demonstração local nunca conta como ao vivo)
+- [ ] Série "Histórico de desmatamento consultado" com gráfico preenchido nas 3 áreas de
+      demonstração + aviso explícito de demonstração local quando aplicável
+- [ ] Sem gráfico inventado para uploads customizados sem dados (estado informativo, sem zeros)
+- [ ] Mapa central com polígono, UCs federais e áreas prioritárias (camadas com nome)
+- [ ] Seção de evidências com fonte, período, resultado e limitação
+- [ ] Seção "Limitações — O que esta análise não responde" sempre visível
+- [ ] Sem TFFF, PlaNAU, carbono ou linguagem de decisão oficial
+- [ ] Relatório JSON e texto refletem exatamente o dashboard e registram o tipo da série
+      (ao vivo / demonstrativa / vazia)
 
 ---
 
 ## QUALIDADE
 
-### 6. Testes e lint — LOGS OBRIGATÓRIOS (cole os 3 abaixo)
-- [x] Log de `python -m pytest tests/ -v` — 14 testes verdes (sem `FAILED`/`ERROR`)
-- [x] Log de `ruff check src tests web scripts` — sem warnings
-- [x] Log de `ruff format src tests web scripts` — sem alterações pendentes
+### 4. Testes e lint — LOGS OBRIGATÓRIOS
+- [ ] Log de `python -m pytest tests/ -v`
+- [ ] Log de `ruff check src tests web scripts`
+- [ ] Log de `ruff format --check src tests web scripts`
+- [ ] Log de `python -m compileall -q src web tests`
+- [ ] `git diff --check` sem erros
 
-### 7. Prova visual — DEMO (automatizada, salva no PC)
-- [x] Screenshot com **Juruti — UMF V Mamuru-Arapiuns** (indicador de carbono complementar + TFFF elegível + PlaNAU "não se aplica") — `screenshots/01_juruti_mamuru.png`
-- [x] Screenshot com **Área urbana pré-diagnóstico** (PlaNAU prioridade alta + déficit árvores) — `screenshots/02_area_urbana_planau.png`
-- [x] Screenshot com **Área degradada pré-diagnóstico** (TFFF não elegível) — `screenshots/03_area_degradada_tfff.png`
-- [x] Geração automatizada por `scripts/screenshots.py` (Playwright) — roda local (`make screenshots`) e no CI (`screenshots.yml` → artefato)
-- [ ] Opcional: GIF <15s dos 3 use cases para o LinkedIn
+### 5. Prova visual — DEMO (automatizada)
+- [ ] Qualidade dos 3 use cases coberta por `scripts/screenshots.py` (Playwright):
+  - `screenshots/01_juruti_contexto.png` (Juruti)
+  - `screenshots/02_area_urbana_contexto.png` (área urbana)
+  - `screenshots/03_area_degradada_contexto.png` (área degradada)
+- [ ] Geração automatizada roda local (`make screenshots`) e no CI (`screenshots.yml`)
 
-### 8. Sanitização
-- [x] `.gitignore` exclui `__pycache__/`, `.venv/`, `.env`, `.pytest_cache/`, `.ruf_cache/`
-- [x] Nenhuma chave/segredo em código ou commit
-- [x] `LICENSE` MIT presente e com autor
-- [x] `src/mrv.py` relatório tem `demonstração edu` + `checksum_sha256`
+### 6. Sanitização
+- [ ] Nenhuma chave/segredo em código ou commit
+- [ ] `LICENSE` MIT presente e com autor
+- [ ] `src/mrv.py` relatório tem `checksum_sha256` com nota de que identifica conteúdo,
+      não certifica a qualidade dos dados
 
 ---
 
 ## GATE FINAL (somente marcar quando os itens acima estiverem verdes)
 
-- [x] Todos os 3 bloqueadores resolvidos (prova visual coberta por automação)
-- [x] 4 logs colados (pytest, ruff check, ruff format, docker build)
-- [x] 3 screenshots dos use cases gerados e salvos em `screenshots/`
-- [x] **Autorizado:** `gh repo create Gaalbu/mrv-amazon-lite --public --source=. --push`
-- [x] **Autorizado/executado:** `gh release create v0.1.0` com notes pós-COP30 — https://github.com/Gaalbu/mrv-amazon-lite/releases/tag/v0.1.0
-- [ ] Post externo final revisado com a nova identidade territorial
-
-## Evidências — execução em 2026-09-02
-
-```text
-$ .venv/bin/python -m pytest tests/ -v
-10 passed in 1.54s
-
-$ .venv/bin/ruff check src tests web scripts
-All checks passed!
-
-$ .venv/bin/ruff format --check src tests web scripts
-10 files already formatted
-
-$ docker build -t mrv-lite:test .
-exit code 0; image mrv-lite:test criada; contexto Docker 85.80kB
-```
-
-Screenshots gerados e salvos no PC (2026-09-02):
-```
-screenshots/01_juruti_mamuru.png       (1440x900 PNG)
-screenshots/02_area_urbana_planau.png  (1440x900 PNG)
-screenshots/03_area_degradada_tfff.png (1440x900 PNG)
-```
-
-Prova visual agora é **automatizada** via `scripts/screenshots.py` (Playwright) e roda tanto local
-(`make screenshots`) quanto no CI (`.github/workflows/screenshots.yml`, publicada como artefato).
-O release v0.1.0 foi publicado após CI verde. O post LinkedIn permanece pendente por exigir
-confirmação final de comunicação pública.
+- [ ] Testes, lint, format e compile passam
+- [ ] Screenshots dos 3 use cases gerados em `screenshots/`
+- [ ] Relatório JSON/texto refletem o dashboard
+- [ ] Aplicação executada no navegador sem erros no console
+- [ ] Diff revisado manualmente
+- [ ] Release somente após autorização explícita

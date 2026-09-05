@@ -7,10 +7,10 @@ Requires: playwright + playwright-chromium installed. The script starts its own
 Streamlit server in a subprocess, waits for it, drives the sidebar through the
 three demo areas, and saves a full-page PNG for each use case.
 
-Based on the 3 use cases documented in CHECKLIST.md:
-    1. Juruti — UMF V Mamuru-Arapiuns  (indicador complementar + TFFF elegível + PlaNAU N/A)
-    2. Área urbana (pré-diagnóstico)    (prioridade alta + déficit de árvores)
-    3. Área degradada (pré-diagnóstico) (TFFF não elegível)
+Use cases documented in CHECKLIST.md:
+    1. Juruti — UMF V Mamuru-Arapiuns   (contexto territorial)
+    2. Área urbana (pré-diagnóstico)    (contexto territorial)
+    3. Área degradada (pré-diagnóstico) (limitações visíveis)
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from contextlib import suppress
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -28,20 +29,20 @@ USE_CASES = [
     {
         "label": "Juruti — UMF V Mamuru-Arapiuns",
         "filter": "Juruti",
-        "file": "01_juruti_mamuru.png",
-        "expect": "Indicador de carbono complementar",
+        "file": "01_juruti_contexto.png",
+        "expect": "Área selecionada",
     },
     {
         "label": "Área urbana (pré-diagnóstico)",
         "filter": "urbana",
-        "file": "02_area_urbana_planau.png",
-        "expect": "Prioridade:",
+        "file": "02_area_urbana_contexto.png",
+        "expect": "Diagnóstico territorial",
     },
     {
         "label": "Área degradada (pré-diagnóstico)",
         "filter": "degradada",
-        "file": "03_area_degradada_tfff.png",
-        "expect": "Não elegível",
+        "file": "03_area_degradada_contexto.png",
+        "expect": "Limitações",
     },
 ]
 
@@ -64,6 +65,37 @@ def select_area(page, filter_text: str, label: str) -> None:
     raise RuntimeError(
         f"Opção não encontrada para '{label}' após filtrar '{filter_text}'"
     )
+
+
+def wait_for_idle(page, timeout: float = 120.0) -> None:
+    """Wait until Streamlit finishes (re)running the script.
+
+    The status widget shows "Running" while the server-side script executes
+    (including the PRODES/ICMBio network calls). Waiting for it to hide
+    guarantees the screenshot captures settled content, not a faded
+    mid-transition page.
+    """
+    running = page.locator('[data-testid="stStatusWidget"]').get_by_text("Running")
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+    with suppress(PlaywrightTimeoutError):
+        running.wait_for(state="visible", timeout=5000)
+    running.wait_for(state="hidden", timeout=int(timeout * 1000))
+
+
+def wait_for_marker(page, marker: str, timeout: float = 120.0) -> None:
+    """Wait until a heading containing the marker is visible in the body."""
+    matchers = [
+        page.get_by_role("heading", name=marker, exact=True),
+        page.get_by_role("heading", name=marker, exact=False),
+    ]
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for locator in matchers:
+            if locator.count() > 0 and locator.first.is_visible():
+                return
+        time.sleep(0.5)
+    raise TimeoutError(f"marcador '{marker}' não apareceu no corpo da página")
 
 
 def wait_for_server(url: str, timeout: float = 60.0) -> None:
@@ -111,17 +143,12 @@ def main() -> int:
             browser = p.chromium.launch()
             page = browser.new_page(viewport={"width": 1440, "height": 900})
             page.goto(url, wait_until="networkidle")
-            page.wait_for_timeout(3000)
+            wait_for_idle(page)
 
             for case in USE_CASES:
                 select_area(page, case["filter"], case["label"])
-                page.wait_for_timeout(1500)
-                body_text = page.locator("body").inner_text()
-                if case["expect"] not in body_text:
-                    raise RuntimeError(
-                        f"Screenshot '{case['file']}' não contém marcador esperado "
-                        f"'{case['expect']}'"
-                    )
+                wait_for_idle(page)
+                wait_for_marker(page, case["expect"])
                 target = out_dir / case["file"]
                 page.screenshot(path=str(target), full_page=True)
                 print(f"saved {target}")

@@ -1,12 +1,24 @@
-"""Traceable JSON report generation."""
+"""Traceable, simplified JSON and text report generation."""
 
 import hashlib
 import json
-from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 
 from src.diagnosis import DiagnosisResult, Evidence
+
+PRELIMINARY_NOTICE = (
+    "Relatório preliminar e educacional baseado em dados públicos. Não substitui "
+    "análise ambiental, jurídica ou técnica, licenciamento, vistoria de campo ou "
+    "decisão oficial."
+)
+
+DEMO_SERIES_WARNING = (
+    "A série apresentada é demonstrativa e foi usada apenas para visualização "
+    "do fluxo; não representa uma medição real do PRODES para esta área."
+)
+
+LIVE_PRODES_SOURCE = "INPE PRODES (ao vivo)"
 
 
 def _default_diagnosis(area_info: dict, deforestation: Any) -> DiagnosisResult:
@@ -14,13 +26,13 @@ def _default_diagnosis(area_info: dict, deforestation: Any) -> DiagnosisResult:
     area_ha = area_info.get("area_ha", 0.0)
     status = "empty" if getattr(deforestation, "empty", False) else "ok"
     summary = (
-        "A série PRODES fornecida não contém registros."
+        "Nenhum registro de desmatamento foi retornado para a área."
         if status == "empty"
-        else "A série PRODES fornecida contém dados para análise preliminar."
+        else "A série de desmatamento consultada contém registros para análise preliminar."
     )
     evidence = Evidence(
         source="INPE PRODES",
-        period="período da série fornecida",
+        period="período da série consultada",
         status=status,
         summary=summary,
         limitations=(
@@ -32,42 +44,66 @@ def _default_diagnosis(area_info: dict, deforestation: Any) -> DiagnosisResult:
         area_ha=area_ha,
         evidences=(evidence,),
         limitations=(
-            "Resultado preliminar e educacional; não substitui análise técnica ou jurídica.",
+            (
+                "Resultado preliminar e educacional; não substitui análise técnica, "
+                "jurídica ou de campo."
+            ),
         ),
         next_steps=("Confirmar as fontes e realizar análise técnica da área.",),
     )
 
 
+def _deforestation_kind(source: str, deforestation: Any) -> str:
+    """Classify the deforestation series as live, demo or empty.
+
+    Returns "ao vivo" for live API data, "demonstrativa" for the local demo
+    series, and "vazia" when no series is available.
+    """
+    lowered = source.lower()
+    if "demonstra" in lowered:
+        return "demonstrativa"
+    if "ao vivo" in lowered:
+        return "ao vivo"
+    if getattr(deforestation, "empty", True):
+        return "vazia"
+    return "ao vivo"
+
+
 def generate_report(
     area_info: dict,
     deforestation: Any,
-    carbon: Any,
-    tfff: Any | None,
-    planau: Any | None,
     diagnosis: DiagnosisResult | None = None,
+    *,
+    sources: list[tuple[str, str]] | None = None,
+    deforestation_source: str | None = None,
 ) -> dict:
+    """Build the simplified preliminary diagnostic report.
+
+    The checksum identifies the generated content; it does not certify the
+    quality of the underlying data sources.
+    """
     territorial_diagnosis = diagnosis or _default_diagnosis(area_info, deforestation)
+    consulted_sources = sources or [("INPE PRODES", "período da série consultada")]
+    series_source = deforestation_source or LIVE_PRODES_SOURCE
     report = {
-        "version": "1.0",
+        "version": "2.0",
         "generated_at": datetime.now(UTC).isoformat(),
-        "methodology": "ARR VCS VM0047 lite (educacional)",
-        "area": area_info,
-        "deforestation": {"series": deforestation.to_dict(), "source": "INPE PRODES"},
-        "carbon_estimate": asdict(carbon),
-        "post_cop30": {
-            "tfff": asdict(tfff) if tfff else None,
-            "planau": asdict(planau) if planau else None,
+        "area": {
+            "name": area_info.get("name") or "Área analisada",
+            "area_ha": area_info.get("area_ha", 0.0),
+        },
+        "deforestation": {
+            "series": deforestation.to_dict()
+            if hasattr(deforestation, "to_dict")
+            else deforestation,
+            "source": series_source,
+            "kind": _deforestation_kind(series_source, deforestation),
         },
         "diagnosis": territorial_diagnosis.to_dict(),
-        "disclaimer": "Estimativa educacional — não substitui certificação VCS/Gold Standard.",
-        "demo_note": "demonstração edu; TFFF/PlaNAU são simulações ilustrativas",
         "sources": [
-            "INPE PRODES",
-            "INPE DETER",
-            "IPCC 2019",
-            "VCS VM0047",
-            "TFFF COP30 Belém 2025",
+            {"source": name, "period": period} for name, period in consulted_sources
         ],
+        "preliminary_notice": PRELIMINARY_NOTICE,
         "inspired_by": "Projeto CNPq RHAE 443538/2024-7 — Green Forest/UFRA/ACC",
     }
     digest = hashlib.sha256(
@@ -75,3 +111,44 @@ def generate_report(
     ).hexdigest()
     report["checksum_sha256"] = digest
     return report
+
+
+def render_text_report(report: dict) -> str:
+    """Render the simplified report as readable plain text."""
+    area = report["area"]
+    lines = [
+        "Diagnóstico Territorial Preliminar — Relatório preliminar",
+        f"Gerado em (data da consulta): {report['generated_at']}",
+        "",
+        f"Nome da área: {area.get('name', '')}",
+        f"Área em hectares: {area.get('area_ha')}",
+        "",
+        "Série de desmatamento consultada (ha/ano):",
+    ]
+    for year, value in report["deforestation"]["series"].items():
+        lines.append(f"  {year}: {value:,.2f}")
+    lines.append(f"Fonte da série: {report['deforestation']['source']}")
+    if report["deforestation"].get("kind") == "demonstrativa":
+        lines.append(f"AVISO: {DEMO_SERIES_WARNING}")
+    lines.append("")
+    for evidence in report["diagnosis"]["evidences"]:
+        lines.append(f"Evidência — {evidence['source']}")
+        lines.append(f"  Status: {evidence['status']}")
+        lines.append(f"  Resultado: {evidence['summary']}")
+        for limitation in evidence["limitations"]:
+            lines.append(f"  Limitação: {limitation}")
+    lines.append("")
+    lines.append("Limitações da análise:")
+    for limitation in report["diagnosis"]["limitations"]:
+        lines.append(f"- {limitation}")
+    lines.append("Próximos passos:")
+    for step in report["diagnosis"]["next_steps"]:
+        lines.append(f"- {step}")
+    lines.append("")
+    lines.append("Fontes consultadas:")
+    for entry in report["sources"]:
+        lines.append(f"- {entry['source']} ({entry['period']})")
+    lines.append("")
+    lines.append(f"Checksum SHA-256: {report['checksum_sha256']}")
+    lines.append(report["preliminary_notice"])
+    return "\n".join(lines)
