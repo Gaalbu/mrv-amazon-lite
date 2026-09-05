@@ -111,6 +111,36 @@ def test_prodes_network_failure_returns_visible_fallback():
     assert "fallback demo" in source
 
 
+def test_prodes_empty_bbox_returns_defined_source_not_fake_live_data():
+    target = gpd.GeoDataFrame(
+        geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])], crs="EPSG:4326"
+    )
+
+    def empty_fetcher(*args, **kwargs):
+        return gpd.GeoDataFrame({"year": []}, geometry=[], crs="EPSG:4326")
+
+    series, source = prodes_series_with_fallback(target, fetcher=empty_fetcher)
+    assert "sem dados" in source
+    assert list(series.index) == list(range(2016, 2025))
+
+
+def test_prodes_live_series_is_not_padded_with_fake_zeros():
+    target = gpd.GeoDataFrame(
+        geometry=[Polygon([(-1, -1), (2, -1), (2, 2), (-1, 2)])], crs="EPSG:4326"
+    )
+
+    def single_year_fetcher(*args, **kwargs):
+        return gpd.GeoDataFrame(
+            {"year": [2020]},
+            geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])],
+            crs="EPSG:4326",
+        )
+
+    series, source = prodes_series_with_fallback(target, fetcher=single_year_fetcher)
+    assert source == "INPE PRODES (ao vivo)"
+    assert set(series.index) == {2020}
+
+
 def test_validate_geodataframe_normalizes_crs_and_calculates_area():
     frame = gpd.GeoDataFrame(
         geometry=[

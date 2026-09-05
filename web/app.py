@@ -1,4 +1,4 @@
-"""Streamlit dashboard for the Diagnóstico Territorial Preliminar."""
+"""Streamlit dashboard for the Diagnóstico Territorial Preliminar (MVP)."""
 
 import json
 from datetime import UTC, datetime
@@ -9,7 +9,6 @@ import requests
 import streamlit as st
 from streamlit_folium import st_folium
 
-from src.carbon import estimate_vcu, estimate_vcu_range
 from src.diagnosis import (
     add_icmbio_evidence,
     add_overlap_evidence,
@@ -22,16 +21,15 @@ from src.ingest import (
     read_and_validate_geojson,
     summarize_icmbio_overlap,
 )
-from src.mrv import generate_report
-from src.planau import check_planau_eligibility
-from src.tfff import check_tfff_eligibility
+from src.mrv import generate_report, render_text_report
 
 st.set_page_config(
     page_title="Diagnóstico Territorial Preliminar", page_icon="🧭", layout="wide"
 )
 st.title("🧭 Diagnóstico Territorial Preliminar")
 st.caption(
-    "Pré-diagnóstico territorial educacional, inspirado no projeto CNPq RHAE 443538/2024-7."
+    "Este painel organiza dados públicos para uma leitura preliminar do território. "
+    "Ele não substitui uma análise ambiental, jurídica ou técnica."
 )
 
 SAMPLES_DIR = Path(__file__).parents[1] / "data" / "samples"
@@ -65,25 +63,13 @@ except ValueError as exc:
     st.stop()
 
 properties = area.iloc[0].to_dict()
-area_ha = st.sidebar.number_input(
-    "Área calculada (ha)", min_value=0.0, value=round(geometry_area_ha, 2), step=10.0
-)
-biomass = st.sidebar.selectbox("Tipo de biomassa", ["terra_firme", "varzea", "igapo"])
-deforestation = float(properties.get("deforestation_pct_10yr", 0.02))
-tree_cover = float(properties.get("tree_cover_pct", 0.0))
-is_urban = bool(properties.get("is_urban", False))
-
-carbon = estimate_vcu(area_ha, biomass)
-low, high = estimate_vcu_range(area_ha, biomass)
-tfff = check_tfff_eligibility(deforestation, area_ha=area_ha)
-planau = check_planau_eligibility(is_urban, tree_cover, area_ha)
+area_name = properties.get("name") or selection
+area_ha = round(geometry_area_ha, 2)
 
 prodes_series, prodes_source = prodes_series_with_fallback(area)
-if "fallback" in prodes_source or "sem dados" in prodes_source:
-    st.warning(prodes_source)
 
 area_bounds = area.total_bounds.tolist()
-icmbio_source = "ICMBio WFS — limiteucsfederais_a"
+icmbio_source = "ICMBio — unidades de conservação federais (WFS)"
 try:
     icmbio_ucs = fetch_icmbio_ucs(area_bounds)
     icmbio_overlap = summarize_icmbio_overlap(icmbio_ucs, area)
@@ -105,43 +91,6 @@ except (OSError, ValueError, requests.RequestException):
     priority_overlap = None
     priority_available = False
 
-left, right = st.columns(2)
-left.metric("Indicador de carbono complementar", f"{carbon.net_vcu:,.0f} tCO₂e")
-left.write(f"Faixa IPCC de referência: {low.net_vcu:,.0f} – {high.net_vcu:,.0f} tCO₂e")
-right.metric("TFFF estimado / ano", f"US$ {tfff.estimated_payment_usd_year:,.2f}")
-right.write("Elegível" if tfff.eligible else "Não elegível")
-st.caption(
-    "TFFF/PlaNAU: simulação ilustrativa para leitura territorial, não decisão oficial"
-)
-
-st.subheader(f"Série PRODES — {prodes_source}")
-if prodes_series.sum() > 0:
-    st.line_chart(prodes_series)
-else:
-    st.line_chart(prodes_series)
-    st.caption("Série sem dados reais na área: exibindo fallback (zeros).")
-
-st.subheader("Área selecionada")
-map_center = [area.union_all().centroid.y, area.union_all().centroid.x]
-m = folium.Map(location=map_center, zoom_start=10, tiles="OpenStreetMap")
-folium.GeoJson(area.__geo_interface__, name="Polígono").add_to(m)
-if icmbio_ucs is not None and not icmbio_ucs.empty:
-    folium.GeoJson(icmbio_ucs.__geo_interface__, name="UCs federais — ICMBio").add_to(m)
-if icmbio_priority_areas is not None and not icmbio_priority_areas.empty:
-    folium.GeoJson(
-        icmbio_priority_areas.__geo_interface__,
-        name="Áreas prioritárias — ICMBio",
-    ).add_to(m)
-st_folium(m, width="100%", height=420)
-
-st.subheader("PlaNAU")
-if planau:
-    st.write(
-        f"Prioridade: **{planau.priority_level}** · déficit: **{planau.deficit_trees:,} árvores** · custo estimado: R$ {planau.estimated_cost_brl:,.2f}"
-    )
-else:
-    st.info("PlaNAU não se aplica: a área selecionada não está marcada como urbana.")
-
 if "fallback" in prodes_source:
     prodes_status = "unavailable"
 elif prodes_series.empty or "sem dados" in prodes_source:
@@ -150,11 +99,7 @@ else:
     prodes_status = "ok"
 
 diagnosis = build_preliminary_diagnosis(
-    properties.get("name") or selection,
-    area_ha,
-    prodes_series,
-    "INPE PRODES",
-    prodes_status,
+    area_name, area_ha, prodes_series, "INPE PRODES", prodes_status
 )
 diagnosis = add_icmbio_evidence(
     diagnosis,
@@ -171,87 +116,112 @@ diagnosis = add_overlap_evidence(
     subject_label="área prioritária",
     available=priority_available,
 )
+
+STATUS_LABELS = {
+    "ok": "Dados disponíveis",
+    "empty": "Sem dados na consulta",
+    "unavailable": "Fonte indisponível",
+}
+overlap_uc = int((icmbio_overlap or {}).get("count", 0))
+overlap_priority = int((priority_overlap or {}).get("count", 0))
+overlap_total = overlap_uc + overlap_priority
+
+st.subheader("Resumo inicial")
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Área analisada", area_name)
+c1.caption(f"Área calculada: {area_ha:,.2f} ha")
+c2.metric("Status do desmatamento", STATUS_LABELS[prodes_status])
+c2.caption("INPE PRODES")
+if icmbio_available and priority_available:
+    c3.metric("Sobreposições encontradas", str(overlap_total))
+    c3.caption("UCs + áreas prioritárias")
+else:
+    c3.metric("Sobreposições", "não verificadas")
+    c3.caption("fonte(s) indisponível(is)")
+c4.metric("Fontes consultadas", "3")
+c4.caption("PRODES: " + STATUS_LABELS[prodes_status])
+uc_status = "disponível" if icmbio_available else "indisponível na consulta"
+priority_status = "disponível" if priority_available else "indisponível na consulta"
+st.write(f"UCs federais: **{uc_status}** · Áreas prioritárias: **{priority_status}**")
+
+st.subheader("Histórico de desmatamento consultado")
+if prodes_status != "ok":
+    st.warning(
+        "Não foi possível obter uma série real nesta consulta. O gráfico abaixo "
+        "representa ausência de dados, não ausência de desmatamento."
+    )
+st.line_chart(prodes_series)
+st.caption(f"Fonte: {prodes_source}")
+
+st.subheader("Área selecionada")
+map_center = [area.union_all().centroid.y, area.union_all().centroid.x]
+m = folium.Map(location=map_center, zoom_start=10, tiles="OpenStreetMap")
+folium.GeoJson(area.__geo_interface__, name="Área analisada").add_to(m)
+if icmbio_ucs is not None and not icmbio_ucs.empty:
+    folium.GeoJson(
+        icmbio_ucs.__geo_interface__,
+        name="Unidades de conservação federais (ICMBio)",
+    ).add_to(m)
+if icmbio_priority_areas is not None and not icmbio_priority_areas.empty:
+    folium.GeoJson(
+        icmbio_priority_areas.__geo_interface__,
+        name="Áreas prioritárias para conservação (ICMBio)",
+    ).add_to(m)
+folium.LayerControl().add_to(m)
+st_folium(m, width="100%", height=420)
+
+evidence_titles = [
+    "Histórico de desmatamento",
+    "Unidades de conservação federais",
+    "Áreas prioritárias para conservação",
+]
 st.subheader("Diagnóstico territorial")
-for evidence in diagnosis.evidences:
+for title, evidence in zip(evidence_titles, diagnosis.evidences):
+    st.markdown(f"#### {title}")
     st.write(evidence.summary)
-    st.caption(f"Fonte: {evidence.source} · Status: {evidence.status}")
-st.write("Limitação: " + "; ".join(diagnosis.limitations))
-st.write("Próximo passo: " + "; ".join(diagnosis.next_steps))
-
-
-def text_report(report: dict) -> str:
-    lines = [
-        "Diagnóstico Territorial Preliminar — Relatório educacional",
-        f"Gerado em: {report['generated_at']}",
-        f"Metodologia: {report['methodology']}",
-        f"Área: {report['area'].get('name', '')} — {report['area'].get('area_ha')} ha",
-        "",
-        "Série desmatamento (ha/ano):",
-    ]
-    for year, value in report["deforestation"]["series"].items():
-        lines.append(f"  {year}: {value:,.2f}")
-    lines.append("")
-    ce = report["carbon_estimate"]
-    lines.append(f"Indicador de carbono complementar: {ce['net_vcu']:,.0f} tCO₂e")
-    lines.append(
-        f"  Faixa IPCC: {ce['uncertainty_range'][0]:,.0f} – {ce['uncertainty_range'][1]:,.0f}"
+    st.caption(
+        f"Fonte: {evidence.source} · Período: {evidence.period} · "
+        f"Status: {STATUS_LABELS[evidence.status]}"
     )
-    pc = report["post_cop30"]
-    if pc["tfff"]:
-        lines.append(
-            f"TFFF elegível: {pc['tfff']['eligible']} — US$ {pc['tfff']['estimated_payment_usd_year']:,.2f}/ano"
-        )
-    else:
-        lines.append("TFFF: não avaliado")
-    if pc["planau"]:
-        lines.append(
-            f"PlaNAU prioridade: {pc['planau']['priority_level']} — déficit {pc['planau']['deficit_trees']:,} árvores"
-        )
-    else:
-        lines.append("PlaNAU: não se aplica (área não urbana)")
-    diagnosis_report = report["diagnosis"]
-    lines.append("")
-    lines.append("Diagnóstico territorial:")
-    lines.append(
-        f"  Área: {diagnosis_report['area_name']} — {diagnosis_report['area_ha']} ha"
-    )
-    for evidence in diagnosis_report["evidences"]:
-        lines.append(
-            f"  Evidência: {evidence['source']} — {evidence['status']} — {evidence['summary']}"
-        )
-        for limitation in evidence["limitations"]:
-            lines.append(f"    Limitação da evidência: {limitation}")
-    lines.append("  Limitações: " + "; ".join(diagnosis_report["limitations"]))
-    lines.append("  Próximos passos: " + "; ".join(diagnosis_report["next_steps"]))
-    lines.append("")
-    lines.append(f"Checksum SHA-256: {report['checksum_sha256']}")
-    lines.append(report["disclaimer"])
-    return "\n".join(lines)
+    for limitation in evidence.limitations:
+        st.caption(f"Limitação: {limitation}")
 
+st.subheader("Limitações — O que esta análise não responde")
+limitations = [
+    "não confirma propriedade ou regularidade fundiária;",
+    "não substitui licenciamento ambiental;",
+    "não substitui vistoria de campo;",
+    "não determina elegibilidade oficial para programas ou fundos;",
+    "depende da cobertura e disponibilidade das fontes públicas;",
+    "sobreposição cartográfica é indicativa, não conclusiva.",
+]
+for limitation in limitations:
+    st.markdown(f"- {limitation}")
 
-if st.button("Gerar relatório MRV"):
+st.subheader("Relatório")
+if st.button("Gerar relatório"):
     report = generate_report(
-        {"name": properties.get("name", selection), "area_ha": area_ha},
+        {"name": area_name, "area_ha": area_ha},
         prodes_series,
-        carbon,
-        tfff,
-        planau,
         diagnosis,
+        sources=[
+            ("INPE PRODES", prodes_source),
+            (icmbio_source, "consulta atual"),
+            (priority_source, "consulta atual"),
+        ],
     )
     report_json = json.dumps(report, indent=2, default=str)
     st.download_button(
         "Baixar relatório JSON",
         report_json,
-        "mrv_report.json",
+        "diagnostico_territorial.json",
         "application/json",
     )
-
     st.download_button(
         "Baixar versão texto",
-        text_report(report),
-        "mrv_report.txt",
+        render_text_report(report),
+        "diagnostico_territorial.txt",
         "text/plain",
     )
-
 
 st.caption(f"Exportado: {datetime.now(UTC).isoformat(timespec='seconds')}UTC")

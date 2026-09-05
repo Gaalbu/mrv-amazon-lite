@@ -227,10 +227,15 @@ def prodes_series_with_fallback(
         if frame.empty:
             return (
                 demo,
-                "INPE PRODES (demo — sem dados na bbox; cobertura disponível só para PA)",
+                "INPE PRODES (sem dados na bbox; cobertura disponível só para PA)",
             )
         series = compute_deforestation_series(frame, target_area)
-        return series.reindex(years).fillna(0.0), "INPE PRODES (ao vivo)"
+        if series.empty:
+            return (
+                demo,
+                "INPE PRODES (sem dados na bbox; cobertura disponível só para PA)",
+            )
+        return series, "INPE PRODES (ao vivo)"
     except (OSError, ValueError, requests.RequestException):
         return (
             demo,

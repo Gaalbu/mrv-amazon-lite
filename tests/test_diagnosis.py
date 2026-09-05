@@ -198,3 +198,18 @@ def test_add_overlap_evidence_supports_priority_area_label():
     assert evidence.status == "ok"
     assert "área prioritária" in evidence.summary
     assert "Área A, Área B" in evidence.summary
+
+
+def test_add_overlap_evidence_marks_priority_source_unavailable():
+    result = add_overlap_evidence(
+        _base_diagnosis(),
+        "ICMBio — Áreas Prioritárias para a Conservação da Biodiversidade - Amazônia",
+        "consulta atual",
+        None,
+        subject_label="área prioritária",
+        available=False,
+    )
+
+    assert result.evidences[0].status == "unavailable"
+    assert "indisponível" in result.evidences[0].summary
+    assert result.evidences[0].limitations
